@@ -1,0 +1,145 @@
+{% extends 'admin/master.html' %}
+
+{% block body %}
+<div class="container-fluid">
+    <h1 class="text-primary mb-4">DUYỆT GIẢNG VIÊN</h1>
+    
+    {% if instructors %}
+    <div class="card">
+        <div class="card-header">
+            <h5>Danh sách giảng viên chờ duyệt ({{ instructors|length }})</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Họ tên</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Số điện thoại</th>
+                            <th>Ngày đăng ký</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for instructor in instructors %}
+                        <tr>
+                            <td>{{ instructor.id }}</td>
+                            <td>{{ instructor.full_name }}</td>
+                            <td>{{ instructor.username or 'N/A' }}</td>
+                            <td>{{ instructor.email }}</td>
+                            <td>{{ instructor.phone or 'N/A' }}</td>
+                            <td>{{ instructor.created_at.strftime('%d/%m/%Y %H:%M') if instructor.created_at else 'N/A' }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button onclick="approveInstructor({{ instructor.id }})" 
+                                            class="btn btn-success btn-sm">
+                                        <i class="fas fa-check"></i> Duyệt
+                                    </button>
+                                    <button onclick="rejectInstructor({{ instructor.id }})" 
+                                            class="btn btn-danger btn-sm">
+                                        <i class="fas fa-times"></i> Từ chối
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <h5>Không có giảng viên nào chờ duyệt!</h5>
+        <p>Tất cả giảng viên đã được xử lý.</p>
+    </div>
+    {% endif %}
+    
+    <div class="mt-3">
+        <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Quay lại Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Thêm Font Awesome cho icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<!-- Thêm Toastr cho notifications -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+<script>
+// Cấu hình Toastr
+toastr.options = {
+    "closeButton": true,
+    "progressBar": true,
+    "positionClass": "toast-top-right",
+    "timeOut": "5000"
+};
+
+function approveInstructor(userId) {
+    if (!confirm('Bạn có chắc muốn duyệt giảng viên này?')) {
+        return;
+    }
+    
+    fetch('/api/admin/approve-instructor', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({user_id: userId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            toastr.success(data.message);
+            // Xóa row khỏi bảng
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            toastr.error(data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        toastr.error('Có lỗi xảy ra khi duyệt giảng viên');
+    });
+}
+
+function rejectInstructor(userId) {
+    if (!confirm('Bạn có chắc muốn từ chối giảng viên này?')) {
+        return;
+    }
+    
+    fetch('/api/admin/reject-instructor', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({user_id: userId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            toastr.success(data.message);
+            // Xóa row khỏi bảng
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            toastr.error(data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        toastr.error('Có lỗi xảy ra khi từ chối giảng viên');
+    });
+}
+</script>
+{% endblock %}

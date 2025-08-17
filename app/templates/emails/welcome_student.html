@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chào mừng Học viên</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.5;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #28a745;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px;
+        }
+        .content {
+            background-color: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .info {
+            background-color: white;
+            padding: 15px;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Chào mừng Học viên!</h1>
+    </div>
+    
+    <div class="content">
+        <p>Xin chào <strong>{{ user.full_name }}</strong>!</p>
+        <p>Chào mừng bạn đến với hệ thống E-Learning!</p>
+    </div>
+    
+    <div class="info">
+        <h3>Thông tin tài khoản:</h3>
+        <p><strong>Tên đăng nhập:</strong> {{ user.username }}</p>
+        <p><strong>Email:</strong> {{ user.email }}</p>
+        <p><strong>Vai trò:</strong> {{ role_name }}</p>
+    </div>
+    
+    <div class="content">
+        <h3>Bạn có thể:</h3>
+        <ul>
+            <li>Tham gia các khóa học</li>
+            <li>Học tập mọi lúc mọi nơi</li>
+            <li>Nhận chứng chỉ</li>
+        </ul>
+    </div>
+    
+    <div style="text-align: center;">
+        <a href="{{ url_for('login_user_route', _external=True) }}" class="button">
+            Đăng nhập ngay
+        </a>
+    </div>
+    
+    <div class="footer">
+        <p>© 2024 E-Learning System</p>
+        <p>Liên hệ: support@elearning.com</p>
+    </div>
+</body>
+</html>
+

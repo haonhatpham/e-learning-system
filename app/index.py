@@ -4,7 +4,7 @@ from app import login
 from app.dao import load_categories, load_featured_courses, search_courses, get_course_by_id
 from flask_login import login_user, logout_user, current_user, login_required
 from app.utils import send_welcome_email, send_registration_confirmation
-from app.models import UserRole, UserStatus
+from app.models import UserRole, UserStatus, Course # Thêm Course
 from app import admin
 
 
@@ -18,17 +18,33 @@ def index():
 # Trang tìm kiếm khóa học
 @app.route("/search")
 def search():
-    q = request.args.get("q", "")
-    courses = search_courses(q)
-    return render_template("search.html", courses=courses, q=q)
+    keyword = request.args.get("q", "")
+    category_id = request.args.get("category_id", type=int)
+    price_min = request.args.get("price_min", type=float)
+    price_max = request.args.get("price_max", type=float)
+
+    courses = dao.search_courses(keyword, category_id, price_min, price_max)
+    categories = dao.load_categories()
+
+    return render_template(
+        "search.html",
+        q=keyword,
+        courses=courses,
+        categories=categories,
+        selected_category=category_id,
+        price_min=price_min,
+        price_max=price_max
+    )
+
 
 # Trang chi tiết khóa học
 @app.route("/course/<int:course_id>")
 def course_detail(course_id):
-    course = get_course_by_id(course_id)
-    if not course:
-        return "Khóa học không tồn tại", 404
-    return render_template("course_detail.html", course=course)
+    course = Course.query.get_or_404(course_id)
+    prev_url = request.referrer or url_for("search")
+    return render_template("course_detail.html", course=course, prev_url=prev_url)
+
+
 
 
     return render_template('index.html', categories=categories, featured_courses=featured_courses)

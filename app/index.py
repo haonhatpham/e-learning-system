@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, flash, session, jsonify
 from app import app, dao
 from app import login
-from app.dao import load_categories, load_featured_courses
+from app.dao import load_categories, load_featured_courses, search_courses, get_course_by_id
 from flask_login import login_user, logout_user, current_user, login_required
 from app.utils import send_welcome_email, send_registration_confirmation
 from app.models import UserRole, UserStatus
@@ -12,7 +12,25 @@ from app import admin
 def index():
     categories = load_categories()
     featured_courses = load_featured_courses(limit=6)
-    
+        
+
+    return render_template('index.html',categories=categories,featured_courses=featured_courses)
+# Trang tìm kiếm khóa học
+@app.route("/search")
+def search():
+    q = request.args.get("q", "")
+    courses = search_courses(q)
+    return render_template("search.html", courses=courses, q=q)
+
+# Trang chi tiết khóa học
+@app.route("/course/<int:course_id>")
+def course_detail(course_id):
+    course = get_course_by_id(course_id)
+    if not course:
+        return "Khóa học không tồn tại", 404
+    return render_template("course_detail.html", course=course)
+
+
     return render_template('index.html', categories=categories, featured_courses=featured_courses)
 
 @app.route("/login-admin", methods=['post'])
@@ -32,7 +50,7 @@ def login_user_route():
         username = request.form.get('username')
         password = request.form.get('password')
         remember = request.form.get('remember') == 'on'
-        
+
         # Kiểm tra đăng nhập bằng username
         user = dao.auth_user_by_username(username=username, password=password)
         if user:
@@ -53,7 +71,7 @@ def login_user_route():
                 else:
                     flash('Mật khẩu không chính xác!', 'error')
             else:
-                flash('Tên đăng nhập không tồn tại!', 'error')    
+                flash('Tên đăng nhập không tồn tại!', 'error')
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -68,7 +86,7 @@ def register():
         role = request.form.get('role')
         phone = request.form.get('phone')
         avatar_file = request.files.get('avatar') if 'avatar' in request.files else None
-        
+
         # Gọi dao.py để xử lý business logic
         new_user, message = dao.create_user_with_validation(
             full_name=full_name,
@@ -80,31 +98,31 @@ def register():
             phone=phone,
             avatar_file=avatar_file
         )
-        
+
         if new_user:
             # Gửi email chào mừng (chỉ cho sinh viên)
             try:
                 send_welcome_email(new_user)
                 send_registration_confirmation(new_user)
-                
+
                 # Thông báo khác nhau theo role
                 if role == 'instructor':
                     flash('Đăng ký giảng viên thành công! Tài khoản đang chờ admin duyệt. Bạn sẽ nhận được email thông báo khi được kích hoạt.', 'warning')
                 else:
                     flash('Đăng ký thành công! Email chào mừng đã được gửi đến hộp thư của bạn.', 'success')
-                    
+
             except Exception as e:
                 if role == 'instructor':
                     flash('Đăng ký giảng viên thành công! Tài khoản đang chờ admin duyệt. Có lỗi khi gửi email xác nhận.', 'warning')
                 else:
                     flash('Đăng ký thành công! Nhưng có lỗi khi gửi email xác nhận.', 'warning')
                 print(f"Email error: {e}")
-            
+
             return redirect(url_for('login_user_route'))
         else:
             # Hiển thị lỗi từ dao.py
             flash(message, 'error')
-    
+
     return render_template('register.html')
 
 @app.route('/logout')
@@ -136,23 +154,23 @@ def api_approve_instructor():
     # Kiểm tra quyền admin
     if current_user.role != UserRole.ADMIN:
         return jsonify({
-            'success': False, 
+            'success': False,
             'message': 'Không có quyền thực hiện hành động này'
         }), 403
-    
+
     try:
         data = request.get_json()
         user_id = data.get('user_id')
-        
+
         if not user_id:
             return jsonify({
-                'success': False, 
+                'success': False,
                 'message': 'Thiếu user_id'
             }), 400
-        
+
         # Gọi dao để duyệt giảng viên
         success, message = dao.approve_instructor(user_id)
-        
+
         if success:
             return jsonify({
                 'success': True,
@@ -164,7 +182,7 @@ def api_approve_instructor():
                 'success': False,
                 'message': f'Lỗi khi duyệt: {message}'
             }), 400
-            
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -179,23 +197,23 @@ def api_reject_instructor():
     # Kiểm tra quyền admin
     if current_user.role != UserRole.ADMIN:
         return jsonify({
-            'success': False, 
+            'success': False,
             'message': 'Không có quyền thực hiện hành động này'
         }), 403
-    
+
     try:
         data = request.get_json()
         user_id = data.get('user_id')
-        
+
         if not user_id:
             return jsonify({
-                'success': False, 
+                'success': False,
                 'message': 'Thiếu user_id'
             }), 400
-        
+
         # Gọi dao để từ chối giảng viên
         success, message = dao.reject_instructor(user_id)
-        
+
         if success:
             return jsonify({
                 'success': True,
@@ -207,7 +225,7 @@ def api_reject_instructor():
                 'success': False,
                 'message': f'Lỗi khi từ chối: {message}'
             }), 400
-            
+
     except Exception as e:
         return jsonify({
             'success': False,

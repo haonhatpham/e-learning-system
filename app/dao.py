@@ -37,45 +37,45 @@ def upload_avatar_to_cloudinary(file, email):
 
 def validate_registration_data(username, email, password, confirm_password):
     """Validate dữ liệu đăng ký và trả về (is_valid, error_message)"""
-    
+
     # Kiểm tra mật khẩu xác nhận
     if password != confirm_password:
         return False, 'Mật khẩu xác nhận không khớp!'
-    
+
     # Kiểm tra độ dài mật khẩu
     if len(password) < 8:
         return False, 'Mật khẩu phải có ít nhất 8 ký tự!'
-    
+
     # Kiểm tra username đã tồn tại chưa
     existing_username = get_user_by_username(username)
     if existing_username:
         return False, 'Tên đăng nhập đã được sử dụng!'
-    
+
     # Kiểm tra email đã tồn tại chưa
     existing_user = get_user_by_email(email)
     if existing_user:
         return False, 'Email đã được sử dụng!'
-    
+
     return True, ''
 
 
 def create_user_with_validation(full_name, username, email, password, confirm_password, role, phone=None, avatar_file=None):
     """Tạo user mới với validation đầy đủ"""
-    
+
     # Validate dữ liệu
     is_valid, error_message = validate_registration_data(username, email, password, confirm_password)
     if not is_valid:
         return None, error_message
-    
+
     try:
         # Hash password
         hashed_password = generate_password_hash(password)
-        
+
         # Upload avatar nếu có
         avatar_url = None
         if avatar_file:
             avatar_url = upload_avatar_to_cloudinary(avatar_file, email)
-        
+
         # Chuyển đổi role string thành enum
         if role == 'student':
             user_role = UserRole.STUDENT
@@ -86,7 +86,7 @@ def create_user_with_validation(full_name, username, email, password, confirm_pa
         else:
             user_role = UserRole.STUDENT
             user_status = UserStatus.ACTIVE
-        
+
         new_user = User(
             username=username,
             full_name=full_name,
@@ -97,18 +97,18 @@ def create_user_with_validation(full_name, username, email, password, confirm_pa
             avatar_url=avatar_url,
             status=user_status
         )
-        
+
         db.session.add(new_user)
         db.session.commit()
-        
+
         # Nếu là giảng viên, gửi email thông báo chờ duyệt
         if role == 'instructor':
             # TODO: Gửi email thông báo chờ admin duyệt
             # send_pending_approval_email(new_user)
             return new_user, 'Đăng ký thành công! Tài khoản đang chờ admin duyệt.'
-        
+
         return new_user, 'Đăng ký thành công!'
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error creating user: {e}")
@@ -118,7 +118,6 @@ def create_user_with_validation(full_name, username, email, password, confirm_pa
 def load_categories():
     categories = Category.query.all()
     return categories
-
 
 def load_featured_courses(limit=6):
     featured_courses = (
@@ -130,22 +129,40 @@ def load_featured_courses(limit=6):
     )
     return featured_courses
 
+# Hàm tìm kiếm khóa học theo từ khóa
+# Có thể tìm theo:
+#   - Tên khóa học (Course.title)
+#   - Tên giảng viên (User.full_name)
+def search_courses(keyword: str):
+    if not keyword:
+        return []
+
+    # Join sang bảng User để tìm theo tên giảng viên
+    return Course.query.join(User, Course.instructor_id == User.id, isouter=True) \
+        .filter(
+            (Course.title.ilike(f"%{keyword}%")) |
+            (User.full_name.ilike(f"%{keyword}%"))
+        ).all()
+
+# Hàm lấy chi tiết khóa học theo ID
+def get_course_by_id(course_id: int):
+    return Course.query.get(course_id)
 
 def auth_user(username, password, role=None):
     # Tìm user theo username trước
     user = User.query.filter_by(username=username.strip()).first()
-    
+
     if not user:
         return None
-    
+
     # Kiểm tra mật khẩu bằng check_password_hash
     if not check_password_hash(user.password, password):
         return None
-    
+
     # Kiểm tra role nếu có yêu cầu
     if role and user.role != role:
         return None
-    
+
     return user
 
 
@@ -184,12 +201,12 @@ def create_user(full_name, username, email, password, role, phone=None, avatar_f
     try:
         # Hash password trước khi lưu vào database
         hashed_password = generate_password_hash(password)
-        
+
         # Upload avatar nếu có
         avatar_url = None
         if avatar_file:
             avatar_url = upload_avatar_to_cloudinary(avatar_file, email)
-        
+
         # Chuyển đổi role string thành enum
         if role == 'student':
             user_role = UserRole.STUDENT
@@ -197,7 +214,7 @@ def create_user(full_name, username, email, password, role, phone=None, avatar_f
             user_role = UserRole.INSTRUCTOR
         else:
             user_role = UserRole.STUDENT
-        
+
         new_user = User(
             username=username,
             full_name=full_name,
@@ -208,11 +225,11 @@ def create_user(full_name, username, email, password, role, phone=None, avatar_f
             avatar_url=avatar_url,
             status=UserStatus.ACTIVE
         )
-        
+
         db.session.add(new_user)
         db.session.commit()
         return new_user
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error creating user: {e}")
@@ -263,7 +280,7 @@ def count_users_by_role():
         User.role,
         func.count(User.id).label('count')
     ).group_by(User.role).all()
-    
+
     return {role.value: count for role, count in stats}
 
 
@@ -273,7 +290,7 @@ def count_courses_by_status():
         Course.status,
         func.count(Course.id).label('count')
     ).group_by(Course.status).all()
-    
+
     return {status: count for status, count in stats}
 
 
@@ -283,7 +300,7 @@ def count_courses_by_category():
         Category.category_name,  # Sửa từ 'name' thành 'category_name'
         func.count(Course.id).label('count')
     ).join(Course).group_by(Category.category_name).all()
-    
+
     return {name: count for name, count in stats}
 
 
@@ -293,14 +310,14 @@ def monthly_registrations():
         func.date_format(User.created_at, '%Y-%m').label('month'),
         func.count(User.id).label('count')
     ).group_by('month').order_by('month').all()
-    
+
     return {month: count for month, count in stats}
 
 
 def get_pending_instructors():
     """Lấy danh sách giảng viên chờ duyệt"""
     return User.query.filter_by(
-        role=UserRole.INSTRUCTOR, 
+        role=UserRole.INSTRUCTOR,
         status=UserStatus.PENDING_APPROVAL
     ).order_by(User.created_at.desc()).all()
 
@@ -311,17 +328,17 @@ def approve_instructor(user_id):
         user = User.query.get(user_id)
         if not user:
             return False, 'Không tìm thấy người dùng'
-        
+
         if user.role != UserRole.INSTRUCTOR:
             return False, 'Người dùng không phải giảng viên'
-        
+
         if user.status != UserStatus.PENDING_APPROVAL:
             return False, 'Giảng viên đã được duyệt hoặc từ chối'
-        
+
         # Cập nhật trạng thái
         user.status = UserStatus.ACTIVE
         db.session.commit()
-        
+
         # Gửi email thông báo duyệt thành công
         try:
             from app.utils import send_approval_email
@@ -329,9 +346,9 @@ def approve_instructor(user_id):
         except Exception as e:
             print(f"Error sending approval email: {e}")
             # Không return False vì việc duyệt vẫn thành công
-        
+
         return True, user.full_name
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error approving instructor: {e}")
@@ -344,17 +361,17 @@ def reject_instructor(user_id):
         user = User.query.get(user_id)
         if not user:
             return False, 'Không tìm thấy người dùng'
-        
+
         if user.role != UserRole.INSTRUCTOR:
             return False, 'Người dùng không phải giảng viên'
-        
+
         if user.status != UserStatus.PENDING_APPROVAL:
             return False, 'Giảng viên đã được duyệt hoặc từ chối'
-        
+
         # Cập nhật trạng thái
         user.status = UserStatus.REJECTED
         db.session.commit()
-        
+
         # Gửi email thông báo từ chối
         try:
             from app.utils import send_rejection_email
@@ -362,9 +379,9 @@ def reject_instructor(user_id):
         except Exception as e:
             print(f"Error sending rejection email: {e}")
             # Không return False vì việc từ chối vẫn thành công
-        
+
         return True, user.full_name
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error rejecting instructor: {e}")

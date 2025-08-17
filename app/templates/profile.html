@@ -1,0 +1,145 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}Hồ sơ - E-Learning{% endblock %}
+
+{% block content %}
+<!-- Header Start -->
+<div class="container-fluid bg-primary py-5 mb-5 page-header">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10 text-center">
+                <h1 class="display-3 text-white animated slideInDown">Hồ sơ cá nhân</h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb justify-content-center">
+                        <li class="breadcrumb-item"><a class="text-white" href="/">Trang chủ</a></li>
+                        <li class="breadcrumb-item text-white active" aria-current="page">Hồ sơ</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Header End -->
+
+<!-- Profile Start -->
+<div class="container-xxl py-5">
+    <div class="container">
+        <div class="row g-5">
+            <div class="col-lg-4">
+                <div class="card shadow">
+                    <div class="card-body text-center">
+                        {% if current_user.avatar_url %}
+                            <img src="{{ current_user.avatar_url }}" alt="Avatar" class="rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                        {% else %}
+                            <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 150px; height: 150px;">
+                                <i class="fas fa-user fa-4x text-white"></i>
+                            </div>
+                        {% endif %}
+                        <h4 class="card-title">{{ current_user.full_name }}</h4>
+                        <p class="text-muted">
+                            {% if current_user.role.value == 'admin' %}
+                                <span class="badge bg-danger">Quản trị viên</span>
+                            {% elif current_user.role.value == 'instructor' %}
+                                <span class="badge bg-warning">Giảng viên</span>
+                            {% else %}
+                                <span class="badge bg-success">Học viên</span>
+                            {% endif %}
+                        </p>
+                        <p class="text-muted mb-0">{{ current_user.email }}</p>
+                        {% if current_user.phone %}
+                            <p class="text-muted mb-0">{{ current_user.phone }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Thông tin chi tiết</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-sm-3">
+                                <h6 class="mb-0">Tên đăng nhập:</h6>
+                            </div>
+                            <div class="col-sm-9 text-secondary">
+                                {{ current_user.username or 'Chưa có' }}
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row mb-3">
+                            <div class="col-sm-3">
+                                <h6 class="mb-0">Họ và tên:</h6>
+                            </div>
+                            <div class="col-sm-9 text-secondary">
+                                {{ current_user.full_name }}
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row mb-3">
+                            <div class="col-sm-3">
+                                <h6 class="mb-0">Email:</h6>
+                            </div>
+                            <div class="col-sm-9 text-secondary">
+                                {{ current_user.email }}
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row mb-3">
+                            <div class="col-sm-3">
+                                <h6 class="mb-0">Số điện thoại:</h6>
+                            </div>
+                            <div class="col-sm-9 text-secondary">
+                                {{ current_user.phone or 'Chưa có' }}
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row mb-3">
+                            <div class="col-sm-3">
+                                <h6 class="mb-0">Vai trò:</h6>
+                            </div>
+                            <div class="col-sm-9 text-secondary">
+                                {% if current_user.role.value == 'admin' %}
+                                    Quản trị viên
+                                {% elif current_user.role.value == 'instructor' %}
+                                    Giảng viên
+                                {% else %}
+                                    Học viên
+                                {% endif %}
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row mb-3">
+                            <div class="col-sm-3">
+                                <h6 class="mb-0">Trạng thái:</h6>
+                            </div>
+                            <div class="col-sm-9 text-secondary">
+                                {% if current_user.status.value == 'active' %}
+                                    <span class="badge bg-success">Hoạt động</span>
+                                {% elif current_user.status.value == 'inactive' %}
+                                    <span class="badge bg-secondary">Không hoạt động</span>
+                                {% elif current_user.status.value == 'pending_approval' %}
+                                    <span class="badge bg-warning">Chờ duyệt</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Bị từ chối</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row mb-3">
+                            <div class="col-sm-3">
+                                <h6 class="mb-0">Ngày tham gia:</h6>
+                            </div>
+                            <div class="col-sm-9 text-secondary">
+                                {{ current_user.created_at.strftime('%d/%m/%Y') if current_user.created_at else 'N/A' }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Profile End -->
+{% endblock %}
+

@@ -1,0 +1,200 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Đăng ký - E-Learning System{% endblock %}
+
+{% block content %}
+<!-- Header Start -->
+<div class="container-fluid bg-primary py-5 mb-5 page-header">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10 text-center">
+                <h1 class="display-3 text-white animated slideInDown">Đăng ký tài khoản</h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb justify-content-center">
+                        <li class="breadcrumb-item"><a class="text-white" href="/">Trang chủ</a></li>
+                        <li class="breadcrumb-item text-white active" aria-current="page">Đăng ký</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Header End -->
+
+<!-- Register Start -->
+<div class="container-xxl py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8 col-md-10">
+                <div class="card shadow-lg border-0">
+                    <div class="card-header bg-primary text-white text-center py-4">
+                        <h3 class="mb-0"><i class="fas fa-user-plus me-2"></i>Tạo tài khoản mới</h3>
+                        <p class="mb-0 mt-2">Tham gia cộng đồng học tập trực tuyến!</p>
+                    </div>
+                    <div class="card-body p-5">
+                        <!-- Flash messages will be handled by Toastr -->
+                        <div id="flash-messages"></div>
+
+                        <form method="POST" action="/register" id="registerForm" enctype="multipart/form-data">
+                            <div class="row">
+                                <div class="col-md-6 mb-4">
+                                    <label for="full_name" class="form-label">
+                                        <i class="fas fa-user me-2 text-primary"></i>Họ và tên <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control form-control-lg" id="full_name" name="full_name" 
+                                           placeholder="Nhập họ và tên đầy đủ" value="{{ request.form.get('full_name', '') }}" required>
+                                </div>
+                                
+                                <div class="col-md-6 mb-4">
+                                    <label for="username" class="form-label">
+                                        <i class="fas fa-at me-2 text-primary"></i>Tên đăng nhập <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control form-control-lg" id="username" name="username" 
+                                           placeholder="Tạo tên đăng nhập" value="{{ request.form.get('username', '') }}" required>
+                                    <div class="form-text">
+                                        <small class="text-muted">Tên đăng nhập sẽ dùng để đăng nhập vào hệ thống</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-4">
+                                    <label for="email" class="form-label">
+                                        <i class="fas fa-envelope me-2 text-primary"></i>Email <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="email" class="form-control form-control-lg" id="email" name="email" 
+                                           placeholder="Nhập email của bạn" value="{{ request.form.get('email', '') }}" required>
+                                </div>
+                                
+                                <div class="col-md-6 mb-4">
+                                    <label for="phone" class="form-label">
+                                        <i class="fas fa-phone me-2 text-primary"></i>Số điện thoại
+                                    </label>
+                                    <input type="tel" class="form-control form-control-lg" id="phone" name="phone" 
+                                           placeholder="Nhập số điện thoại (tùy chọn)" value="{{ request.form.get('phone', '') }}">
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-4">
+                                    <label for="password" class="form-label">
+                                        <i class="fas fa-lock me-2 text-primary"></i>Mật khẩu <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control form-control-lg" id="password" name="password" 
+                                               placeholder="Tạo mật khẩu mạnh" required>
+                                        <span class="input-group-text" id="showPasswordToggle" style="cursor: pointer;">
+                                            <i class="bi bi-eye" id="eyeIcon"></i>
+                                        </span>
+                                    </div>
+                                    <div class="form-text">
+                                        <small class="text-muted">Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và số</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6 mb-4">
+                                    <label for="confirm_password" class="form-label">
+                                        <i class="fas fa-lock me-2 text-primary"></i>Xác nhận mật khẩu <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control form-control-lg" id="confirm_password" name="confirm_password" 
+                                               placeholder="Nhập lại mật khẩu" required>
+                                        <span class="input-group-text" id="showConfirmPasswordToggle" style="cursor: pointer;">
+                                            <i class="bi bi-eye" id="eyeIconConfirm"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-4">
+                                    <label for="role" class="form-label">
+                                        <i class="fas fa-graduation-cap me-2 text-primary"></i>Vai trò <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select form-select-lg" id="role" name="role" required>
+                                        <option value="">Chọn vai trò</option>
+                                        <option value="student" {{ 'selected' if request.form.get('role') == 'student' else '' }}>Học viên</option>
+                                        <option value="instructor" {{ 'selected' if request.form.get('role') == 'instructor' else '' }}>Giảng viên</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="col-md-6 mb-4">
+                                    <!-- Trường này đã được di chuyển lên trên -->
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="avatar" class="form-label">
+                                    <i class="fas fa-image me-2 text-primary"></i>Ảnh đại diện
+                                </label>
+                                <input type="file" class="form-control form-control-lg" id="avatar" name="avatar" 
+                                       accept="image/*">
+                                <div class="form-text">
+                                    <small class="text-muted">Chọn ảnh đại diện (JPG, PNG - tối đa 2MB)</small>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4 form-check">
+                                <input type="checkbox" class="form-check-input" id="agree_terms" name="agree_terms" required>
+                                <label class="form-check-label" for="agree_terms">
+                                    Tôi đồng ý với <a href="/terms" class="text-primary">Điều khoản sử dụng</a> và 
+                                    <a href="/privacy" class="text-primary">Chính sách bảo mật</a> <span class="text-danger">*</span>
+                                </label>
+                            </div>
+                            
+                            <div class="d-grid mb-4">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-user-plus me-2"></i>Đăng ký tài khoản
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="card-footer text-center py-3 bg-light">
+                        <p class="mb-0">
+                            Đã có tài khoản? 
+                            <a href="/login" class="text-primary text-decoration-none fw-bold">
+                                Đăng nhập ngay
+                            </a>
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Benefits -->
+                <div class="row mt-5">
+                    <div class="col-md-4 text-center mb-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <i class="fas fa-book fa-3x text-primary mb-3"></i>
+                                <h5>Học không giới hạn</h5>
+                                <p class="text-muted">Truy cập vào hàng trăm khóa học chất lượng cao</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center mb-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <i class="fas fa-certificate fa-3x text-primary mb-3"></i>
+                                <h5>Chứng chỉ được công nhận</h5>
+                                <p class="text-muted">Nhận chứng chỉ sau khi hoàn thành khóa học</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center mb-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                                <h5>Cộng đồng học tập</h5>
+                                <p class="text-muted">Kết nối với giảng viên và học viên khác</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+

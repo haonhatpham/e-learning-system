@@ -9,6 +9,7 @@ cryptography==41.0.7
 Flask==2.3.3
 Flask-Admin==1.6.1
 Flask-Login==0.6.3
+Flask-Mail==0.9.1
 Flask-Migrate==4.0.5
 Flask-SQLAlchemy==3.0.5
 greenlet==3.2.4

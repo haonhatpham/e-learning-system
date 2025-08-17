@@ -1,0 +1,39 @@
+<nav class="navbar navbar-expand-lg bg-white navbar-light shadow sticky-top p-0">
+    <a href="/" class="navbar-brand d-flex align-items-center px-4 px-lg-5">
+        <h2 class="m-0 fw-bold text-primary"><i class="fas fa-graduation-cap me-2"></i>E-Learning</h2>
+    </a>
+    <button type="button" class="navbar-toggler me-4" data-bs-toggle="collapse" data-bs-target="#navbarCollapse">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarCollapse">
+        <div class="navbar-nav ms-auto p-4 p-lg-0">
+            <a href="/" class="nav-item nav-link {% if request.endpoint == 'index' %}active{% endif %}">Trang chủ</a>
+            <a href="#about" class="nav-item nav-link">Giới thiệu</a>
+            <a href="#courses" class="nav-item nav-link">Khóa học</a>
+            <a href="#contact" class="nav-item nav-link">Liên hệ</a>
+            {% if current_user.is_authenticated %}
+                <div class="nav-item dropdown">
+                    <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fa fa-user me-1"></i>{{ current_user.username or current_user.full_name }}
+                    </a>
+                    <div class="dropdown-menu">
+                        <a href="/profile" class="dropdown-item">Hồ sơ</a>
+                        <a href="/my-courses" class="dropdown-item">Khóa học của tôi</a>
+                        {% if current_user.role.value == 'admin' %}
+                            <a href="/admin" class="dropdown-item">Quản trị</a>
+                        {% endif %}
+                        <div class="dropdown-divider"></div>
+                        <a href="/logout" class="dropdown-item">Đăng xuất</a>
+                    </div>
+                </div>
+            {% else %}
+                <a href="/login" class="nav-item nav-link {% if request.endpoint == 'login' %}active{% endif %}">
+                    <i class="fa fa-user me-1"></i>Đăng nhập
+                </a>
+                <a href="/register" class="nav-item nav-link {% if request.endpoint == 'register' %}active{% endif %}">
+                    <i class="fa fa-user-plus me-1"></i>Đăng ký
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</nav>

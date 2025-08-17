@@ -1,3 +1,4 @@
+from flask_login import UserMixin
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Boolean, Text, DECIMAL, Enum, JSON, CheckConstraint
 # from flask_login import UserMixin  # Tạm thời comment lại
 from sqlalchemy.sql import func
@@ -51,15 +52,17 @@ class BaseModel(db.Model):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
 # User Model - Kế thừa từ BaseModel (tạm thời không dùng UserMixin)
-class User(BaseModel):  # Tạm thời bỏ UserMixin
+class User(BaseModel, UserMixin):  # Tạm thời bỏ UserMixin
     __tablename__ = 'users'
-    
+
+    username = Column(String(50), nullable=True, unique=True)  # Đổi thành nullable=True vì register form không có username
     full_name = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.STUDENT)
     status = Column(Enum(UserStatus), default=UserStatus.ACTIVE)
     avatar_url = Column(String(500))
+    phone = Column(String(20), nullable=True)  # Thêm trường phone
     
     # Relationships
     courses_created = relationship('Course', backref='instructor', lazy=True, foreign_keys='Course.instructor_id')
@@ -87,7 +90,7 @@ class Course(BaseModel):
     description = Column(Text)
     cover_image = Column(String(500))
     category_id = Column(ForeignKey('categories.id'), nullable=True)
-    instructor_id = Column(ForeignKey('users.id'), nullable=True, default=None)
+    instructor_id = Column(ForeignKey('users.id'), nullable=False)
     status = Column(Enum(CourseStatus), default=CourseStatus.DRAFT)
     level = Column(Enum(CourseLevel), default=CourseLevel.BEGINNER)
     
@@ -179,113 +182,4 @@ class ForumComment(BaseModel):
     # Self-referencing relationship for nested comments
     replies = relationship('ForumComment', backref=backref('parent', remote_side='ForumComment.id'))
 
-# Hàm tạo dữ liệu mẫu
-def create_sample_data():
-    """Tạo dữ liệu mẫu cho ứng dụng"""
-    from app import db
-    
-    # Kiểm tra và tạo categories nếu chưa có
-    existing_categories = Category.query.all()
-    if not existing_categories:
-        categories = [
-            Category(category_name='Lập trình Web', description='Các khóa học về phát triển web, HTML, CSS, JavaScript, React, Node.js'),
-            Category(category_name='Lập trình Mobile', description='Các khóa học về phát triển ứng dụng di động Android, iOS, React Native'),
-            Category(category_name='Data Science', description='Các khóa học về khoa học dữ liệu, Python, Machine Learning, SQL'),
-            Category(category_name='AI & Machine Learning', description='Các khóa học về trí tuệ nhân tạo, deep learning, neural networks'),
-        ]
-        
-        for category in categories:
-            db.session.add(category)
-        
-        try:
-            db.session.commit()
-            print("Categories created successfully!")
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error creating categories: {e}")
-            return
-    else:
-        print(f"Categories already exist ({len(existing_categories)} found)")
-    
-    # Kiểm tra và tạo courses nếu chưa có
-    existing_courses = Course.query.all()
-    if not existing_courses:
-        # Lấy categories để map ID
-        categories = Category.query.all()
-        category_map = {cat.category_name: cat.id for cat in categories}
-        
-        courses = [
-            Course(
-                title='HTML & CSS Cơ Bản',
-                price=0.00,
-                description='Khóa học cơ bản về HTML và CSS cho người mới bắt đầu học lập trình web',
-                category_id=category_map['Lập trình Web'],
-                instructor_id=None,
-                status=CourseStatus.PUBLISHED,
-                level=CourseLevel.BEGINNER
-            ),
-            Course(
-                title='JavaScript Nâng Cao',
-                price=299000.00,
-                description='Khóa học JavaScript nâng cao với ES6+, async/await, và modern patterns',
-                category_id=category_map['Lập trình Web'],
-                instructor_id=None,
-                status=CourseStatus.PUBLISHED,
-                level=CourseLevel.ADVANCED
-            ),
-            Course(
-                title='React.js Cơ Bản',
-                price=399000.00,
-                description='Học React.js từ cơ bản đến nâng cao với dự án thực tế',
-                category_id=category_map['Lập trình Web'],
-                instructor_id=None,
-                status=CourseStatus.PUBLISHED,
-                level=CourseLevel.INTERMEDIATE
-            ),
-            Course(
-                title='Flutter Development',
-                price=499000.00,
-                description='Phát triển ứng dụng mobile đa nền tảng với Flutter',
-                category_id=category_map['Lập trình Mobile'],
-                instructor_id=None,
-                status=CourseStatus.PUBLISHED,
-                level=CourseLevel.INTERMEDIATE
-            ),
-            Course(
-                title='Python Data Analysis',
-                price=599000.00,
-                description='Phân tích dữ liệu với Python, Pandas, và Matplotlib',
-                category_id=category_map['Data Science'],
-                instructor_id=None,
-                status=CourseStatus.PUBLISHED,
-                level=CourseLevel.BEGINNER
-            ),
-            Course(
-                title='Machine Learning Cơ Bản',
-                price=799000.00,
-                description='Giới thiệu về Machine Learning với Python và Scikit-learn',
-                category_id=category_map['AI & Machine Learning'],
-                instructor_id=None,
-                status=CourseStatus.PUBLISHED,
-                level=CourseLevel.INTERMEDIATE
-            )
-        ]
-        
-        for course in courses:
-            db.session.add(course)
-        
-        try:
-            db.session.commit()
-            print("Courses created successfully!")
-            print("Sample data created successfully!")
-        except Exception as e:
-            db.session.rollback()
-            print(f"Error creating courses: {e}")
-    else:
-        print(f"Courses already exist ({len(existing_courses)} found)")
 
-
-# if __name__ == '__main__':
-#     from app import app
-#     with app.app_context():
-#         db.create_all()

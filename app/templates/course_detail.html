@@ -1,73 +1,105 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <title>{{ course.title }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        /* Logo */
-        .logo {
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, #007bff, #00c6ff);
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 18px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-        }
-        /* Header */
-        .header {
-            background: white;
-            padding: 15px 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            margin-bottom: 25px;
-        }
-        /* Card chi tiết */
-        .course-detail {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        .price {
-            font-size: 20px;
-            font-weight: bold;
-            color: #dc3545;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>{{ course.title }} - Chi tiết khóa học</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; }
+    .header-box {
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-bottom: 20px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 20px;
+      background: #fff;
+      border-radius: 6px;
+    }
+    .course-img {
+      width: 100%;
+      max-width: 500px;   
+      height: auto;
+      max-height: 300px;  
+      object-fit: cover;
+      border-radius: 8px;
+      display: block;
+      margin: 0 auto; 
+      background: #e9ecef;
+    }
+    .price {
+      color: red;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .btn-enroll {
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .back-btn {
+      margin-bottom: 15px;
+    }
+    .content-box {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      max-width: 700px;  
+      margin: 0 auto;    
+    }
+  </style>
 </head>
 <body class="container py-4">
 
+  <!-- Nút quay lại -->
+  <div class="back-btn">
+    <a href="{{ prev_url }}" class="btn btn-outline-dark">&larr; Quay lại</a>
+  </div>
+
+  <!-- Nội dung chi tiết -->
+  <div class="content-box">
     <!-- Header -->
-    <div class="header d-flex justify-content-between align-items-center">
-        <div class="logo">E</div>
-        <h2 class="fw-bold text-primary">CHI TIẾT KHÓA HỌC</h2>
-        <a href="/login" class="btn btn-primary">Đăng nhập</a>
+    <div class="header-box">
+      THÔNG TIN KHÓA HỌC
     </div>
 
-    <!-- Nội dung chi tiết -->
-    <div class="course-detail mb-4">
-        <h2 class="text-dark mb-3">{{ course.title }}</h2>
-        <p><strong>Mô tả:</strong> {{ course.description }}</p>
-        <p><strong>Danh mục:</strong> {{ course.category.category_name if course.category else "Chưa có" }}</p>
-        <p><strong>Giảng viên:</strong> {{ course.instructor.full_name if course.instructor else "Chưa có" }}</p>
-        <p><strong>Giá:</strong> <span class="price">{{ "{:,.0f}".format(course.price) }} VND</span></p>
+    <!-- Ảnh khóa học -->
+    <div class="mb-4 text-center">
+      <img src="{{ course.cover_image or 'https://via.placeholder.com/500x300' }}" alt="Ảnh khóa học" class="course-img">
     </div>
 
-    <!-- Nút điều hướng -->
-    <div class="d-flex gap-2">
-        <a href="/search?q={{ course.title }}" class="btn btn-secondary">← Quay lại kết quả</a>
-        <a href="/" class="btn btn-outline-primary">Trang chủ</a>
+    <!-- Thông tin chi tiết -->
+    <div class="mb-3">
+      <p><strong>Tên khóa học:</strong> {{ course.title }}</p>
+      <p><strong>Giảng viên:</strong> {{ course.instructor.full_name if course.instructor else 'Chưa có' }}</p>
+      <p><strong>Danh mục:</strong> {{ course.category.category_name if course.category else 'Chưa có' }}</p>
+      <p><strong>Giá tiền:</strong> <span class="price">{{ "{:,.0f}".format(course.price) }} VND</span></p>
     </div>
+
+    <!-- Mô tả -->
+    <div class="mb-3">
+      <label><strong>Mô tả:</strong></label>
+      <div class="form-control" readonly>
+        {{ course.description or "Chưa có mô tả." }}
+      </div>
+    </div>
+
+    <!-- Nút đăng ký -->
+    <div class="text-center mb-4">
+      <button class="btn btn-success btn-enroll">ĐĂNG KÝ NGAY!</button>
+    </div>
+
+    <!-- Nội dung khóa học -->
+    <div>
+      <h5><strong>Nội dung khóa học:</strong></h5>
+      <ul>
+        <li>Giới thiệu</li>
+        <li>Cài đặt môi trường</li>
+        <li>Cú pháp cơ bản</li>
+        <li>Thực hành dự án nhỏ</li>
+      </ul>
+    </div>
+  </div>
 
 </body>
 </html>

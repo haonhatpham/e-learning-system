@@ -133,16 +133,23 @@ def load_featured_courses(limit=6):
 # Có thể tìm theo:
 #   - Tên khóa học (Course.title)
 #   - Tên giảng viên (User.full_name)
-def search_courses(keyword: str):
-    if not keyword:
-        return []
+# Đã thêm bộ lọc
+def search_courses(keyword=None, category_id=None, price_min=None, price_max=None):
+    query = Course.query.join(User, Course.instructor_id == User.id, isouter=True)
 
-    # Join sang bảng User để tìm theo tên giảng viên
-    return Course.query.join(User, Course.instructor_id == User.id, isouter=True) \
-        .filter(
+    if keyword:
+        query = query.filter(
             (Course.title.ilike(f"%{keyword}%")) |
             (User.full_name.ilike(f"%{keyword}%"))
-        ).all()
+        )
+    if category_id:
+        query = query.filter(Course.category_id == category_id)
+    if price_min:
+        query = query.filter(Course.price >= price_min)
+    if price_max:
+        query = query.filter(Course.price <= price_max)
+    return query.all()
+
 
 # Hàm lấy chi tiết khóa học theo ID
 def get_course_by_id(course_id: int):

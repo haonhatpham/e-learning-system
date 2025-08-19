@@ -86,7 +86,11 @@
 
     <!-- Nút đăng ký -->
     <div class="text-center mb-4">
-      <button class="btn btn-success btn-enroll">ĐĂNG KÝ NGAY!</button>
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('checkout', course_id=course.id) }}" class="btn btn-success btn-enroll">ĐĂNG KÝ NGAY!</a>
+      {% else %}
+        <a href="{{ url_for('login_user_route', next=url_for('course_detail', course_id=course.id)) }}" class="btn btn-success btn-enroll">ĐĂNG KÝ NGAY!</a>
+      {% endif %}
     </div>
 
     <!-- Nội dung khóa học -->

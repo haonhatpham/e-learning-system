@@ -14,6 +14,17 @@
                             <h5 class="text-uppercase mb-3 animated slideInDown text-primary">Nền tảng học trực tuyến hàng đầu</h5>
                             <h1 class="display-3 text-white animated slideInDown">Học kỹ năng thực tế từ các khóa học trực tuyến miễn phí với chứng chỉ</h1>
                             <p class="text-white mb-4 pb-2">Khám phá nhiều khóa học được thiết kế để nâng cao chuyên môn của bạn trong công nghệ, kinh doanh, nghệ thuật và nhiều lĩnh vực khác. Bắt đầu học ngay hôm nay!</p>
+                            
+                            <!-- Hero Search Bar -->
+                            <form action="/search" method="get" class="mb-4">
+                                <div class="input-group input-group-lg">
+                                    <input type="text" class="form-control" name="q" placeholder="Tìm kiếm khóa học..." aria-label="Tìm kiếm khóa học">
+                                    <button class="btn btn-primary" type="submit">
+                                        <i class="fas fa-search me-2"></i>Tìm kiếm
+                                    </button>
+                                </div>
+                            </form>
+                            
                             <a href="#courses" class="btn btn-primary py-md-3 px-md-5 me-3 animated slideInLeft">Khám phá khóa học</a>
                             <a href="/register" class="btn btn-light py-md-3 px-md-5 animated slideInRight">Đăng ký ngay</a>
                         </div>
@@ -23,6 +34,8 @@
         </div>
     </div>
     <!-- Hero Section End -->
+
+
 
     <!-- Features Start -->
     <div class="container-xxl py-5">
@@ -199,7 +212,7 @@
                             </div>
                             <div class="p-3">
                                 <h5 class="mb-2">
-                                    <a href="#" class="text-dark text-decoration-none">{{ course.title }}</a>
+                                    <a href="{{ url_for('course_detail', course_id=course.id) }}" class="text-dark text-decoration-none">{{ course.title }}</a>
                                 </h5>
                                 <p class="text-muted small mb-2">{{ course.description[:60] }}...</p>
                                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -208,7 +221,7 @@
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <small><i class="fa fa-clock me-1"></i>{{ course.status.value|title }}</small>
-                                    <a href="#" class="btn btn-primary btn-sm">Đăng ký ngay</a>
+                                    <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn btn-primary btn-sm">Xem chi tiết</a>
                                 </div>
                             </div>
                         </div>

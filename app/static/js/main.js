@@ -150,3 +150,61 @@ function getMessageType(messageElement) {
     
     return 'info'; // Mặc định
 }
+
+/*=============== CHỨC NĂNG TÌM KIẾM ===============*/
+document.addEventListener('DOMContentLoaded', function() {
+    // Xử lý form tìm kiếm
+    const searchForms = document.querySelectorAll('form[action="/search"]');
+    
+    searchForms.forEach(function(form) {
+        const searchInput = form.querySelector('input[name="q"]');
+        const searchButton = form.querySelector('button[type="submit"]');
+        
+        if (searchInput && searchButton) {
+            // Tự động focus vào ô tìm kiếm khi trang load
+            if (form.closest('.hero-section')) {
+                searchInput.focus();
+            }
+            
+            // Xử lý khi nhập text
+            searchInput.addEventListener('input', function() {
+                if (this.value.trim().length > 0) {
+                    searchButton.disabled = false;
+                    searchButton.classList.remove('btn-secondary');
+                    searchButton.classList.add('btn-primary');
+                } else {
+                    searchButton.disabled = true;
+                    searchButton.classList.remove('btn-primary');
+                    searchButton.classList.add('btn-secondary');
+                }
+            });
+            
+            // Xử lý khi submit form
+            form.addEventListener('submit', function(e) {
+                if (!searchInput.value.trim()) {
+                    e.preventDefault();
+                    searchInput.focus();
+                    return false;
+                }
+                
+                // Thêm loading state
+                searchButton.innerHTML = '<span class="loading"></span> Đang tìm...';
+                searchButton.disabled = true;
+            });
+        }
+    });
+    
+    // Xử lý tìm kiếm nhanh với Enter
+    const heroSearchInput = document.querySelector('.hero-section input[name="q"]');
+    if (heroSearchInput) {
+        heroSearchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const form = this.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
+        });
+    }
+});

@@ -542,6 +542,109 @@ body {
     transform: translateY(-5px);
 }
 
+/* Search Form Styles */
+.search-form .input-group {
+    border-radius: 50px;
+    overflow: hidden;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.search-form .form-control {
+    border: none;
+    padding: 15px 25px;
+    font-size: 16px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+.search-form .form-control:focus {
+    box-shadow: none;
+    background: rgba(255, 255, 255, 1);
+}
+
+.search-form .btn {
+    border: none;
+    padding: 15px 30px;
+    font-weight: 600;
+    border-radius: 0 50px 50px 0;
+    transition: all 0.3s ease;
+}
+
+.search-form .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+}
+
+/* Hero Search Bar */
+.hero-section .input-group {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.hero-section .form-control {
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 15px 25px;
+    font-size: 16px;
+}
+
+.hero-section .form-control::placeholder {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.hero-section .form-control:focus {
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+    color: white;
+}
+
+.hero-section .btn[type="submit"] {
+    border: none;
+    padding: 15px 30px;
+    font-weight: 600;
+    border-radius: 0 50px 50px 0;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--primary);
+    transition: all 0.3s ease;
+}
+
+.hero-section .btn[type="submit"]:hover {
+    background: white;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 255, 255, 0.3);
+}
+
+/* Khôi phục style cho các nút chính */
+.hero-section .btn-primary:not([type="submit"]) {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+    border-radius: 5px;
+}
+
+.hero-section .btn-primary:not([type="submit"]):hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+}
+
+.hero-section .btn-light {
+    background-color: var(--light);
+    border-color: var(--light);
+    color: var(--dark);
+    border-radius: 5px;
+}
+
+.hero-section .btn-light:hover {
+    background-color: #e2e6ea;
+    border-color: #dae0e5;
+    transform: translateY(-2px);
+}
+
 /* Loading Animation */
 .loading {
     display: inline-block;

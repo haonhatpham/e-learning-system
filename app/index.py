@@ -1,11 +1,19 @@
-from flask import render_template, request, redirect, url_for, flash, session, jsonify
-from app import app, dao
+from flask import render_template, request, redirect, url_for, flash, jsonify
+from app import app, dao, db
 from app import login
-from app.dao import load_categories, load_featured_courses, search_courses, get_course_by_id
+from app.dao import load_categories, load_featured_courses, search_courses
 from flask_login import login_user, logout_user, current_user, login_required
 from app.utils import send_welcome_email, send_registration_confirmation
-from app.models import UserRole, UserStatus, Course # Thêm Course
+from app.models import UserRole, UserStatus, Course, Enrollment, Payment, PaymentMethod, PaymentStatus
 from app import admin
+from datetime import datetime
+from decimal import Decimal
+import time
+import urllib.parse
+import hmac
+import hashlib
+import json
+import requests
 
 
 @app.route("/")
@@ -75,7 +83,6 @@ def login_user_route():
             next_page = request.args.get('next')
             return redirect(next_page if next_page else '/')
         else:
-            # Kiểm tra lý do thất bại để hiển thị thông báo cụ thể
             user_check = dao.get_user_by_username(username)
             if user_check:
                 if user_check.status == UserStatus.PENDING_APPROVAL:
@@ -93,7 +100,6 @@ def login_user_route():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        # Lấy dữ liệu từ form
         full_name = request.form.get('full_name')
         username = request.form.get('username')
         email = request.form.get('email')
@@ -103,7 +109,7 @@ def register():
         phone = request.form.get('phone')
         avatar_file = request.files.get('avatar') if 'avatar' in request.files else None
 
-        # Gọi dao.py để xử lý business logic
+        # Gọi dao.py để xử lý logic
         new_user, message = dao.create_user_with_validation(
             full_name=full_name,
             username=username,
@@ -116,29 +122,17 @@ def register():
         )
 
         if new_user:
-            # Gửi email chào mừng (chỉ cho sinh viên)
-            try:
-                send_welcome_email(new_user)
-                send_registration_confirmation(new_user)
+            send_welcome_email(new_user)
+            send_registration_confirmation(new_user)
 
-                # Thông báo khác nhau theo role
-                if role == 'instructor':
-                    flash('Đăng ký giảng viên thành công! Tài khoản đang chờ admin duyệt. Bạn sẽ nhận được email thông báo khi được kích hoạt.', 'warning')
-                else:
-                    flash('Đăng ký thành công! Email chào mừng đã được gửi đến hộp thư của bạn.', 'success')
-
-            except Exception as e:
-                if role == 'instructor':
-                    flash('Đăng ký giảng viên thành công! Tài khoản đang chờ admin duyệt. Có lỗi khi gửi email xác nhận.', 'warning')
-                else:
-                    flash('Đăng ký thành công! Nhưng có lỗi khi gửi email xác nhận.', 'warning')
-                print(f"Email error: {e}")
+            if role == 'instructor':
+                flash('Đăng ký giảng viên thành công! Tài khoản đang chờ admin duyệt. Bạn sẽ nhận được email thông báo khi được kích hoạt.', 'warning')
+            else:
+                flash('Đăng ký thành công! Email chào mừng đã được gửi đến hộp thư của bạn.', 'success')
 
             return redirect(url_for('login_user_route'))
         else:
-            # Hiển thị lỗi từ dao.py
             flash(message, 'error')
-
     return render_template('register.html')
 
 @app.route('/logout')
@@ -157,12 +151,377 @@ def my_courses():
     return render_template('my_courses.html')
 
 
+@app.route('/checkout/<int:course_id>')
+@login_required
+def checkout(course_id):
+    course = Course.query.get_or_404(course_id)
+    
+    # Kiểm tra đã ghi danh chưa
+    existing_enrollment = Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first()
+    if existing_enrollment:
+        flash('Bạn đã đăng ký khóa học này rồi.', 'warning')
+        return redirect(url_for('course_detail', course_id=course_id))
+    
+    return render_template('checkout.html', course=course)
+
+
+@app.route('/checkout/<int:course_id>', methods=['POST'])
+@login_required
+def process_checkout(course_id):
+    course = Course.query.get_or_404(course_id)
+    payment_method = request.form.get('payment_method')
+    
+    if payment_method == 'vnpay':
+        return redirect(url_for('vnpay_form', course_id=course_id))
+    elif payment_method == 'momo':
+        return redirect(url_for('create_momo_payment', course_id=course_id))
+    else:
+        flash('Vui lòng chọn phương thức thanh toán.', 'error')
+        return redirect(url_for('checkout', course_id=course_id))
+
+
+@app.route('/vnpay-form/<int:course_id>')
+@login_required
+def vnpay_form(course_id):
+    course = Course.query.get_or_404(course_id)
+    return render_template('vnpay_form.html', course=course)
+
+
+def create_vnpay_url(course_id, user_id, amount, bank_code='', language='vn'):
+    params = {
+        'vnp_Version': '2.1.0',
+        'vnp_Command': 'pay',
+        'vnp_TmnCode': app.config.get('VNPAY_TMN_CODE'),
+        'vnp_Amount': int(amount * 100),  # VNPAY yêu cầu nhân 100
+        'vnp_CurrCode': 'VND',
+        'vnp_TxnRef': f"{course_id}-{user_id}-{int(time.time())}",
+        'vnp_OrderInfo': f'Thanh toan khoa hoc {course_id}',
+        'vnp_OrderType': 'other',
+        'vnp_Locale': language,
+        # Dùng URL động theo host hiện tại để không mất session khi quay về
+        'vnp_ReturnUrl': url_for('payment_return', _external=True),
+        'vnp_IpAddr': request.remote_addr or '127.0.0.1',
+        'vnp_CreateDate': datetime.now().strftime('%Y%m%d%H%M%S')
+    }
+    
+
+    if bank_code and bank_code.strip():
+        params['vnp_BankCode'] = bank_code.strip()
+    
+
+    filtered_params = {k: v for k, v in params.items() if v is not None and str(v).strip() != ''}
+
+    sorted_params = sorted(filtered_params.items())
+    
+
+    sign_parts = []
+    for k, v in sorted_params:
+        encoded_v = urllib.parse.quote_plus(str(v))
+        sign_parts.append(f"{k}={encoded_v}")
+    sign_string = '&'.join(sign_parts)
+    
+    # Tạo chữ ký HMAC-SHA512
+    secret_key = app.config.get('VNPAY_HASH_SECRET_KEY')
+    signature = hmac.new(
+        secret_key.encode('utf-8'),
+        sign_string.encode('utf-8'),
+        hashlib.sha512
+    ).hexdigest()
+    
+
+    query_parts = []
+    for k, v in sorted_params:
+        encoded_v = urllib.parse.quote_plus(str(v))
+        query_parts.append(f"{k}={encoded_v}")
+    
+    query_string = '&'.join(query_parts)
+    payment_url = f"{app.config.get('VNPAY_PAYMENT_URL')}?{query_string}&vnp_SecureHash={signature}"
+    
+    return payment_url
+
+
+@app.route('/payment/vnpay/create/<int:course_id>', methods=['POST'])
+@login_required
+def create_vnpay_payment(course_id):
+    """Tạo thanh toán VNPAY"""
+    course = Course.query.get_or_404(course_id)
+
+    # Kiểm tra đã ghi danh chưa
+    existing_enrollment = Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first()
+    if existing_enrollment:
+        flash('Bạn đã đăng ký khóa học này rồi.', 'warning')
+        return redirect(url_for('course_detail', course_id=course_id))
+
+    # khóa học miễn phí
+    try:
+        price = Decimal(str(course.price))
+    except Exception:
+        price = Decimal('0')
+
+    if price == 0:
+        #ghi trực tiếp
+        enrollment = Enrollment(user_id=current_user.id, course_id=course_id)
+        db.session.add(enrollment)
+        db.session.commit()
+        flash('Đăng ký khóa học miễn phí thành công!', 'success')
+        return redirect(url_for('my_courses'))
+
+    # Lấy thông tin từ form
+    bank_code = request.form.get('bank_code', '').strip()
+    language = request.form.get('language', 'vn')
+
+    # Tạo URL thanh toán VNPAY
+    payment_url = create_vnpay_url(
+        course_id=course_id,
+        user_id=current_user.id,
+        amount=price,
+        bank_code=bank_code,
+        language=language
+    )
+
+    return redirect(payment_url)
+
+# Momo
+def momo_sign(raw_signature: str, secret_key: str) -> str:
+    return hmac.new(secret_key.encode('utf-8'), raw_signature.encode('utf-8'), hashlib.sha256).hexdigest()
+
+
+@app.route('/payment/momo/create/<int:course_id>', methods=['GET', 'POST'])
+@login_required
+def create_momo_payment(course_id):
+    course = Course.query.get_or_404(course_id)
+
+    # Chặn ghi danh trùng
+    if Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first():
+        flash('Bạn đã đăng ký khóa học này rồi.', 'warning')
+        return redirect(url_for('course_detail', course_id=course_id))
+
+    try:
+        amount = int(Decimal(str(course.price)))
+    except Exception:
+        amount = 0
+
+    if amount == 0:
+        enrollment = Enrollment(user_id=current_user.id, course_id=course_id)
+        db.session.add(enrollment)
+        db.session.commit()
+        flash('Đăng ký khóa học miễn phí thành công!', 'success')
+        return redirect(url_for('my_courses'))
+
+    partner_code = app.config.get('MOMO_PARTNER_CODE')
+    access_key = app.config.get('MOMO_ACCESS_KEY')
+    secret_key = app.config.get('MOMO_SECRET_KEY')
+    endpoint = app.config.get('MOMO_ENDPOINT')
+    # Dùng URL động theo host hiện tại để tránh lệch domain làm mất cookie đăng nhập
+    return_url = url_for('momo_return', _external=True)
+    ipn_url = url_for('momo_ipn', _external=True)
+
+    order_id = f"{course_id}-{current_user.id}-{int(time.time())}"
+    request_id = f"REQ-{int(time.time()*1000)}"
+    order_info = f"Thanh toan khoa hoc {course_id}"
+    request_type = 'captureWallet'
+    extra_data = ''
+
+    raw_signature = (
+        f"accessKey={access_key}&amount={amount}&extraData={extra_data}"
+        f"&ipnUrl={ipn_url}&orderId={order_id}&orderInfo={order_info}"
+        f"&partnerCode={partner_code}&redirectUrl={return_url}"
+        f"&requestId={request_id}&requestType={request_type}"
+    )
+    signature = momo_sign(raw_signature, secret_key)
+
+    payload = {
+        "partnerCode": partner_code,
+        "partnerName": "MoMo",
+        "storeId": "MoMoTestStore",
+        "requestId": request_id,
+        "amount": amount,
+        "orderId": order_id,
+        "orderInfo": order_info,
+        "redirectUrl": return_url,
+        "ipnUrl": ipn_url,
+        "lang": "vi",
+        "requestType": request_type,
+        "extraData": extra_data,
+        "signature": signature
+    }
+
+    try:
+        resp = requests.post(f"{endpoint}/v2/gateway/api/create", json=payload, timeout=20)
+        data = resp.json()
+        if data.get('resultCode') == 0 and data.get('payUrl'):
+            return redirect(data['payUrl'])
+        else:
+            flash(f"MoMo error: {data}", 'error')
+            return redirect(url_for('checkout', course_id=course_id))
+    except Exception as e:
+        flash(f"MoMo request error: {e}", 'error')
+        return redirect(url_for('checkout', course_id=course_id))
+
+
+@app.route('/momo_return')
+def momo_return():
+    params = {k: v for k, v in request.args.items()}
+    partner_code = app.config.get('MOMO_PARTNER_CODE')
+    access_key = app.config.get('MOMO_ACCESS_KEY')
+    secret_key = app.config.get('MOMO_SECRET_KEY')
+
+    # Raw signature theo tài liệu MoMo (return route)
+    raw_signature = (
+        f"accessKey={access_key}&amount={params.get('amount','')}"
+        f"&extraData={params.get('extraData','')}"
+        f"&message={params.get('message','')}"
+        f"&orderId={params.get('orderId','')}"
+        f"&orderInfo={params.get('orderInfo','')}"
+        f"&orderType={params.get('orderType','')}"
+        f"&partnerCode={params.get('partnerCode','')}"
+        f"&payType={params.get('payType','')}"
+        f"&requestId={params.get('requestId','')}"
+        f"&responseTime={params.get('responseTime','')}"
+        f"&resultCode={params.get('resultCode','')}"
+        f"&transId={params.get('transId','')}"
+    )
+    signature = momo_sign(raw_signature, secret_key)
+
+    is_valid = signature == params.get('signature')
+
+    course_id = user_id = None
+    try:
+        parts = (params.get('orderId') or '').split('-')
+        if len(parts) >= 2:
+            course_id = int(parts[0])
+            user_id = int(parts[1])
+    except Exception:
+        pass
+
+    if is_valid and params.get('resultCode') == '0' and course_id and user_id:
+        amount_vnd = Decimal(int(params.get('amount','0')))
+        enrollment = Enrollment.query.filter_by(user_id=user_id, course_id=course_id).first()
+        if not enrollment:
+            enrollment = Enrollment(user_id=user_id, course_id=course_id)
+            db.session.add(enrollment)
+            db.session.flush()
+
+        payment = Payment(
+            enrollment_id=enrollment.id,
+            amount=amount_vnd,
+            payment_method=PaymentMethod.MOMO,
+            transaction_id=str(params.get('transId') or params.get('orderId')),
+            status=PaymentStatus.COMPLETED
+        )
+        db.session.add(payment)
+        db.session.commit()
+
+        course = Course.query.get(course_id)
+        payment_info = {
+            'transaction_id': str(params.get('transId') or params.get('orderId')),
+            'course_title': course.title if course else 'Không xác định',
+            'amount': amount_vnd,
+            'payment_method': 'MOMO',
+            'payment_date': datetime.now()
+        }
+        return render_template('payment_return.html', success=True, payment_info=payment_info)
+    else:
+        flash('Thanh toán MoMo thất bại hoặc chữ ký sai.', 'error')
+        return redirect(url_for('checkout', course_id=course_id or 0))
+
+
+@app.route('/momo_ipn', methods=['POST'])
+def momo_ipn():
+    params = request.get_json(force=True, silent=True) or {}
+    access_key = app.config.get('MOMO_ACCESS_KEY')
+    secret_key = app.config.get('MOMO_SECRET_KEY')
+
+    raw_signature = (
+        f"accessKey={access_key}&amount={params.get('amount','')}"
+        f"&extraData={params.get('extraData','')}"
+        f"&message={params.get('message','')}"
+        f"&orderId={params.get('orderId','')}"
+        f"&orderInfo={params.get('orderInfo','')}"
+        f"&orderType={params.get('orderType','')}"
+        f"&partnerCode={params.get('partnerCode','')}"
+        f"&payType={params.get('payType','')}"
+        f"&requestId={params.get('requestId','')}"
+        f"&responseTime={params.get('responseTime','')}"
+        f"&resultCode={params.get('resultCode','')}"
+        f"&transId={params.get('transId','')}"
+    )
+    signature = momo_sign(raw_signature, secret_key)
+    is_valid = signature == params.get('signature')
+
+    if is_valid and str(params.get('resultCode')) == '0':
+        # Có thể thực hiện cập nhật trạng thái giao dịch tại đây (idempotency)
+        return jsonify({'resultCode': 0, 'message': 'OK'})
+    else:
+        return jsonify({'resultCode': 1, 'message': 'Invalid signature'}), 400
+
+
+@app.route('/payment_return')
+def payment_return():
+    response_data = {k: v for k, v in request.args.items()}
+    
+
+    response_code = request.args.get('vnp_ResponseCode')
+    txn_ref = request.args.get('vnp_TxnRef')
+    amount_str = request.args.get('vnp_Amount', '0')
+    transaction_no = request.args.get('vnp_TransactionNo')
+
+    # Parse course_id và user_id từ txn_ref
+    course_id = None
+    user_id = None
+    parts = (txn_ref or '').split('-')
+    if len(parts) >= 2:
+        course_id = int(parts[0])
+        user_id = int(parts[1])
+
+    if response_code == '00' and course_id and user_id:
+        # Thanh toán thành công
+        try:
+            amount_vnd = Decimal(int(amount_str) / 100)
+        except Exception:
+            amount_vnd = Decimal('0')
+
+        # Tạo enrollment nếu chưa có
+        enrollment = Enrollment.query.filter_by(user_id=user_id, course_id=course_id).first()
+        if not enrollment:
+            enrollment = Enrollment(user_id=user_id, course_id=course_id)
+            db.session.add(enrollment)
+            db.session.flush()
+
+        # Tạo payment record
+        payment = Payment(
+            enrollment_id=enrollment.id,
+            amount=amount_vnd,
+            payment_method=PaymentMethod.VNPAY,
+            transaction_id=str(transaction_no or txn_ref),
+            status=PaymentStatus.COMPLETED
+        )
+        db.session.add(payment)
+        db.session.commit()
+
+        # Lấy thông tin để hiển thị
+        course = Course.query.get(course_id)
+        payment_info = {
+            'transaction_id': str(transaction_no or txn_ref),
+            'course_title': course.title if course else 'Không xác định',
+            'amount': amount_vnd,
+            'payment_method': 'VNPAY',
+            'payment_date': datetime.now()
+        }
+
+        return render_template('payment_return.html', success=True, payment_info=payment_info)
+    else:
+        # Thanh toán thất bại
+        error_message = 'Thanh toán thất bại hoặc bị hủy.'
+        return render_template('payment_return.html', success=False, error_message=error_message)
+
+
 @login.user_loader
 def load_user(user_id):
     return dao.get_user_by_id(user_id)
 
 
-# ==================== ADMIN API ROUTES ====================
+# danh cho admin
 @app.route('/api/admin/approve-instructor', methods=['POST'])
 @login_required
 def api_approve_instructor():
@@ -249,6 +608,7 @@ def api_reject_instructor():
         }), 500
 
 
+
+
 if __name__ == "__main__":
     app.run(debug=True)
-

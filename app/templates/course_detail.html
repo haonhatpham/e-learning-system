@@ -96,12 +96,30 @@
     <!-- Nội dung khóa học -->
     <div>
       <h5><strong>Nội dung khóa học:</strong></h5>
-      <ul>
-        <li>Giới thiệu</li>
-        <li>Cài đặt môi trường</li>
-        <li>Cú pháp cơ bản</li>
-        <li>Thực hành dự án nhỏ</li>
+      {% if course.lessons %}
+      <ul class="list-group">
+        {% for l in course.lessons %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <span class="badge bg-secondary me-2">{{ l.lesson_order }}</span>
+              {{ l.title }}
+              {% if l.is_preview %}
+                <span class="badge bg-info ms-2">Preview</span>
+              {% endif %}
+            </div>
+            <div>
+              {% if l.is_preview or user_enrolled or user_is_owner or user_is_admin %}
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('view_lesson', course_id=course.id, lesson_id=l.id) }}">Xem</a>
+              {% else %}
+                <a class="btn btn-sm btn-outline-secondary disabled" tabindex="-1" aria-disabled="true">Khóa</a>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
       </ul>
+      {% else %}
+        <div class="alert alert-light">Khóa học chưa có bài học.</div>
+      {% endif %}
     </div>
   </div>
 

@@ -4,7 +4,7 @@ from app import login
 from app.dao import load_categories, load_featured_courses, search_courses
 from flask_login import login_user, logout_user, current_user, login_required
 from app.utils import send_welcome_email, send_registration_confirmation
-from app.models import UserRole, UserStatus, Course, Enrollment, Payment, PaymentMethod, PaymentStatus
+from app.models import UserRole, UserStatus, Course, CourseStatus, CourseLevel, Lesson, LessonType, Enrollment, Payment, PaymentMethod, PaymentStatus
 from app import admin
 from datetime import datetime
 from decimal import Decimal
@@ -50,7 +50,41 @@ def search():
 def course_detail(course_id):
     course = Course.query.get_or_404(course_id)
     prev_url = request.referrer or url_for("search")
-    return render_template("course_detail.html", course=course, prev_url=prev_url)
+    user_enrolled = False
+    user_is_owner = False
+    user_is_admin = False
+    if current_user.is_authenticated:
+        user_enrolled = Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first() is not None
+        user_is_owner = (course.instructor_id == current_user.id)
+        user_is_admin = (current_user.role == UserRole.ADMIN)
+    return render_template("course_detail.html", course=course, prev_url=prev_url,
+                           user_enrolled=user_enrolled, user_is_owner=user_is_owner, user_is_admin=user_is_admin)
+
+
+def can_view_lesson(lesson: Lesson, course: Course) -> bool:
+    if lesson.is_preview:
+        return True
+    if current_user.is_authenticated:
+        if current_user.role == UserRole.ADMIN:
+            return True
+        if course.instructor_id == current_user.id:
+            return True
+        if Enrollment.query.filter_by(user_id=current_user.id, course_id=course.id).first():
+            return True
+    return False
+
+
+@app.route('/course/<int:course_id>/lesson/<int:lesson_id>')
+def view_lesson(course_id, lesson_id):
+    course = Course.query.get_or_404(course_id)
+    lesson = Lesson.query.filter_by(id=lesson_id, course_id=course.id).first_or_404()
+    if not can_view_lesson(lesson, course):
+        flash('Bạn cần đăng ký khóa học để xem bài học này (trừ preview).', 'warning')
+        return redirect(url_for('course_detail', course_id=course.id))
+    embed_url = None
+    if lesson.type == LessonType.VIDEO:
+        embed_url = dao.to_embeddable_video_url(lesson.content_url)
+    return render_template('lesson_view.html', course=course, lesson=lesson, embed_url=embed_url)
 
 
 
@@ -608,6 +642,196 @@ def api_reject_instructor():
         }), 500
 
 
+def require_instructor_active():
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_user_route'))
+    if current_user.role != UserRole.INSTRUCTOR or current_user.status != UserStatus.ACTIVE:
+        flash('Chỉ giảng viên đã được duyệt mới có thể truy cập.', 'error')
+        return redirect(url_for('index'))
+    return None
+
+
+@app.route('/instructor/courses')
+@login_required
+def instructor_courses():
+    guard = require_instructor_active()
+    if guard:
+        return guard
+    courses = Course.query.filter_by(instructor_id=current_user.id).order_by(Course.created_at.desc()).all()
+    return render_template('instructor/courses.html', courses=courses, CourseStatus=CourseStatus)
+
+
+@app.route('/instructor/courses/create', methods=['GET', 'POST'])
+@login_required
+def instructor_create_course():
+    guard = require_instructor_active()
+    if guard:
+        return guard
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        price = request.form.get('price', type=float) or 0.0
+        level = request.form.get('level') or CourseLevel.BEGINNER.value
+        status_val = request.form.get('status') or CourseStatus.DRAFT.value
+        cover_file = request.files.get('cover_image')
+
+        cover_url = None
+        if cover_file and cover_file.filename:
+            cover_url = dao.upload_image_to_cloudinary(cover_file, 'e-learning/course_covers', f"course_{current_user.id}")
+
+        course = Course(
+            title=title,
+            description=description,
+            price=price,
+            level=CourseLevel(level),
+            status=CourseStatus(status_val),
+            cover_image=cover_url,
+            instructor_id=current_user.id
+        )
+        db.session.add(course)
+        db.session.commit()
+        flash('Tạo khóa học thành công!', 'success')
+        return redirect(url_for('instructor_courses'))
+
+    return render_template('instructor/course_form.html', course=None, CourseStatus=CourseStatus, CourseLevel=CourseLevel)
+
+
+@app.route('/instructor/courses/<int:course_id>/edit', methods=['GET', 'POST'])
+@login_required
+def instructor_edit_course(course_id):
+    guard = require_instructor_active()
+    if guard:
+        return guard
+    course = Course.query.filter_by(id=course_id, instructor_id=current_user.id).first_or_404()
+    if request.method == 'POST':
+        course.title = request.form.get('title')
+        course.description = request.form.get('description')
+        course.price = request.form.get('price', type=float) or 0.0
+        course.level = CourseLevel(request.form.get('level') or CourseLevel.BEGINNER.value)
+        course.status = CourseStatus(request.form.get('status') or CourseStatus.DRAFT.value)
+        cover_file = request.files.get('cover_image')
+        if cover_file and cover_file.filename:
+            cover_url = dao.upload_image_to_cloudinary(cover_file, 'e-learning/course_covers', f"course_{course.id}")
+            if cover_url:
+                course.cover_image = cover_url
+        db.session.commit()
+        flash('Cập nhật khóa học thành công!', 'success')
+        return redirect(url_for('instructor_courses'))
+    return render_template('instructor/course_form.html', course=course, CourseStatus=CourseStatus, CourseLevel=CourseLevel)
+
+
+@app.route('/instructor/courses/<int:course_id>/delete', methods=['POST'])
+@login_required
+def instructor_delete_course(course_id):
+    guard = require_instructor_active()
+    if guard:
+        return guard
+    course = Course.query.filter_by(id=course_id, instructor_id=current_user.id).first_or_404()
+
+    Lesson.query.filter_by(course_id=course.id).delete()
+    db.session.delete(course)
+    db.session.commit()
+    flash('Đã xóa khóa học.', 'success')
+    return redirect(url_for('instructor_courses'))
+
+
+@app.route('/instructor/courses/<int:course_id>/lessons')
+@login_required
+def instructor_lessons(course_id):
+    guard = require_instructor_active()
+    if guard:
+        return guard
+    course = Course.query.filter_by(id=course_id, instructor_id=current_user.id).first_or_404()
+    lessons = Lesson.query.filter_by(course_id=course.id).order_by(Lesson.lesson_order.asc()).all()
+    return render_template('instructor/lessons.html', course=course, lessons=lessons, LessonType=LessonType)
+
+
+@app.route('/instructor/courses/<int:course_id>/lessons/create', methods=['GET', 'POST'])
+@login_required
+def instructor_create_lesson(course_id):
+    guard = require_instructor_active()
+    if guard:
+        return guard
+    course = Course.query.filter_by(id=course_id, instructor_id=current_user.id).first_or_404()
+    if request.method == 'POST':
+        title = request.form.get('title')
+        lesson_type = request.form.get('type')
+        content_url = request.form.get('content_url')
+        content_data_raw = request.form.get('content_data')
+        lesson_order = request.form.get('lesson_order', type=int) or 0
+        duration_seconds = request.form.get('duration_seconds', type=int) or 0
+        is_preview = True if request.form.get('is_preview') == 'on' else False
+
+        try:
+            content_data = json.loads(content_data_raw) if content_data_raw else None
+        except Exception:
+            content_data = None
+
+        # Normalize video URLs to embeddable format (e.g., YouTube)
+        if lesson_type and lesson_type.lower() == 'video' and content_url:
+            content_url = dao.normalize_video_url(content_url)
+
+        lesson = Lesson(
+            title=title,
+            type=LessonType(lesson_type),
+            content_url=content_url,
+            content_data=content_data,
+            course_id=course.id,
+            lesson_order=lesson_order,
+            duration_seconds=duration_seconds,
+            is_preview=is_preview
+        )
+        db.session.add(lesson)
+        db.session.commit()
+        flash('Tạo bài học thành công!', 'success')
+        return redirect(url_for('instructor_lessons', course_id=course.id))
+
+    return render_template('instructor/lesson_form.html', course=course, lesson=None, LessonType=LessonType)
+
+
+@app.route('/instructor/lessons/<int:lesson_id>/edit', methods=['GET', 'POST'])
+@login_required
+def instructor_edit_lesson(lesson_id):
+    guard = require_instructor_active()
+    if guard:
+        return guard
+    lesson = Lesson.query.get_or_404(lesson_id)
+    course = Course.query.filter_by(id=lesson.course_id, instructor_id=current_user.id).first_or_404()
+    if request.method == 'POST':
+        lesson.title = request.form.get('title')
+        lesson.type = LessonType(request.form.get('type'))
+        content_url = request.form.get('content_url')
+        content_data_raw = request.form.get('content_data')
+        try:
+            lesson.content_data = json.loads(content_data_raw) if content_data_raw else None
+        except Exception:
+            lesson.content_data = None
+        lesson.lesson_order = request.form.get('lesson_order', type=int) or 0
+        lesson.duration_seconds = request.form.get('duration_seconds', type=int) or 0
+        lesson.is_preview = True if request.form.get('is_preview') == 'on' else False
+
+        # Normalize video URLs to embeddable format (e.g., YouTube)
+        if lesson.type == LessonType.VIDEO and content_url:
+            content_url = dao.normalize_video_url(content_url)
+        lesson.content_url = content_url
+        db.session.commit()
+        flash('Cập nhật bài học thành công!', 'success')
+        return redirect(url_for('instructor_lessons', course_id=course.id))
+    return render_template('instructor/lesson_form.html', course=course, lesson=lesson, LessonType=LessonType)
+
+
+@app.route('/instructor/lessons/<int:lesson_id>/delete', methods=['POST'])
+@login_required
+def instructor_delete_lesson(lesson_id):
+    guard = require_instructor_active()
+    if guard:
+        return guard
+    lesson = Lesson.query.get_or_404(lesson_id)
+    course = Course.query.filter_by(id=lesson.course_id, instructor_id=current_user.id).first_or_404()
+    db.session.delete(lesson)
+    db.session.commit()
+    flash('Đã xóa bài học.', 'success')
+    return redirect(url_for('instructor_lessons', course_id=course.id))
 
 
 if __name__ == "__main__":

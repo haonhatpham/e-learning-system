@@ -1,5 +1,5 @@
 import hashlib
-
+import urllib.parse
 from app import db
 from app.models import *
 from sqlalchemy import desc, func
@@ -32,6 +32,24 @@ def upload_avatar_to_cloudinary(file, email):
         return None
     except Exception as e:
         print(f"Error uploading avatar: {e}")
+        return None
+
+
+def upload_image_to_cloudinary(file, folder, public_id_prefix):
+    """Generic image upload to Cloudinary and return secure URL"""
+    try:
+        if file and file.filename and allowed_file(file.filename):
+            result = cloudinary.uploader.upload(
+                file,
+                folder=folder,
+                public_id=f"{public_id_prefix}_{secure_filename(file.filename)}",
+                overwrite=True,
+                resource_type="image"
+            )
+            return result.get('secure_url')
+        return None
+    except Exception as e:
+        print(f"Error uploading image: {e}")
         return None
 
 
@@ -393,3 +411,90 @@ def reject_instructor(user_id):
         db.session.rollback()
         print(f"Error rejecting instructor: {e}")
         return False, str(e)
+
+
+
+
+def normalize_video_url(url: str) -> str:
+    """Normalize common video URLs to embeddable ones (currently YouTube + Vimeo)."""
+    try:
+        if not url:
+            return url
+
+        # Use urllib.parse to analyze
+        parsed = urllib.parse.urlparse(url)
+        hostname = (parsed.hostname or '').lower()
+
+        # Helper: parse t/start into seconds
+        def _to_seconds(raw: str) -> int:
+            try:
+                if not raw:
+                    return 0
+                raw = raw.strip().lower()
+                if raw.isdigit():
+                    return int(raw)
+                # formats like 1h2m3s, 2m10s, 30s
+                import re
+                hours = minutes = seconds = 0
+                match_h = re.search(r"(\d+)h", raw)
+                match_m = re.search(r"(\d+)m", raw)
+                match_s = re.search(r"(\d+)s", raw)
+                if match_h:
+                    hours = int(match_h.group(1))
+                if match_m:
+                    minutes = int(match_m.group(1))
+                if match_s:
+                    seconds = int(match_s.group(1))
+                if not (match_h or match_m or match_s):
+                    return int(raw)
+                return hours * 3600 + minutes * 60 + seconds
+            except Exception:
+                return 0
+
+        # YouTube family
+        if 'youtube.com' in hostname or 'youtu.be' in hostname or 'youtube-nocookie.com' in hostname:
+            # Short link: youtu.be/VIDEO_ID
+            if 'youtu.be' in hostname:
+                video_id = parsed.path.lstrip('/')
+                qs = urllib.parse.parse_qs(parsed.query or '')
+                start = _to_seconds(qs.get('t', [''])[0] or qs.get('start', [''])[0])
+                start_query = f"?start={start}" if start > 0 else ''
+                return f"https://www.youtube.com/embed/{video_id}{start_query}"
+
+            # Shorts: youtube.com/shorts/VIDEO_ID
+            if parsed.path.startswith('/shorts/'):
+                video_id = parsed.path.split('/shorts/')[1].split('/')[0]
+                return f"https://www.youtube.com/embed/{video_id}"
+
+            # Standard watch: youtube.com/watch?v=VIDEO_ID
+            if parsed.path == '/watch':
+                qs = urllib.parse.parse_qs(parsed.query or '')
+                video_id = (qs.get('v') or [''])[0]
+                start = _to_seconds(qs.get('t', [''])[0] or qs.get('start', [''])[0])
+                start_query = f"?start={start}" if start > 0 else ''
+                if video_id:
+                    return f"https://www.youtube.com/embed/{video_id}{start_query}"
+            # Already embed or other path: return as-is
+            return url
+
+        # Vimeo
+        if 'vimeo.com' in hostname and 'player.vimeo.com' not in hostname:
+            video_id = parsed.path.strip('/').split('/')[0]
+            if video_id and video_id.isdigit():
+                return f"https://player.vimeo.com/video/{video_id}"
+
+        return url
+    except Exception:
+        return url
+
+
+def to_embeddable_video_url(url: str) -> str:
+    """Compute a safe embeddable URL at render time (idempotent)."""
+    try:
+        if not url:
+            return url
+        return normalize_video_url(url)
+    except Exception:
+        return url
+
+

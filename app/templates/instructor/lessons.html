@@ -1,0 +1,51 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}Bài học - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Bài học: {{ course.title }}</h3>
+    <a class="btn btn-primary" href="{{ url_for('instructor_create_lesson', course_id=course.id) }}">+ Thêm bài học</a>
+  </div>
+
+  {% if lessons %}
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Tiêu đề</th>
+        <th>Loại</th>
+        <th>Thời lượng</th>
+        <th>Preview</th>
+        <th class="text-end">Thao tác</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in lessons %}
+      <tr>
+        <td>{{ l.lesson_order }}</td>
+        <td>{{ l.title }}</td>
+        <td>{{ l.type.value|upper }}</td>
+        <td>{{ l.duration_seconds }}s</td>
+        <td>{% if l.is_preview %}<span class="badge bg-info">Preview</span>{% else %}-{% endif %}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-success" href="{{ url_for('view_lesson', course_id=course.id, lesson_id=l.id) }}">Xem</a>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('instructor_edit_lesson', lesson_id=l.id) }}">Sửa</a>
+          <form class="d-inline" method="post" action="{{ url_for('instructor_delete_lesson', lesson_id=l.id) }}" onsubmit="return confirm('Xóa bài học này?');">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="alert alert-info">Chưa có bài học nào.</div>
+  {% endif %}
+
+  <a class="btn btn-secondary" href="{{ url_for('instructor_courses') }}">Quay lại khóa học</a>
+</div>
+{% endblock %}
+
+

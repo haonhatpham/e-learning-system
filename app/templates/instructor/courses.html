@@ -1,0 +1,69 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}Quản lý khóa học - Giảng viên{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="mb-0">Khóa học của tôi</h3>
+        <a class="btn btn-primary" href="{{ url_for('instructor_create_course') }}">
+            <i class="fa fa-plus me-1"></i> Tạo khóa học mới
+        </a>
+    </div>
+
+    {% if courses %}
+        <div class="table-responsive">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>Ảnh</th>    
+                        <th>Tiêu đề</th>
+                        <th>Giá</th>
+                        <th>Trạng thái</th>
+                        <th>Ngày tạo</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for c in courses %}
+                    <tr>
+                        <td style="width: 80px;">
+                            {% if c.cover_image %}
+                                <img src="{{ c.cover_image }}" alt="cover" class="img-thumbnail" style="width: 72px; height: 48px; object-fit: cover;">
+                            {% else %}
+                                <div class="bg-light text-muted d-flex align-items-center justify-content-center border" style="width:72px;height:48px;">N/A</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ c.title }}</td>
+                        <td>{{ "{:,.0f}".format((c.price or 0)|float) }} đ</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if c.status.value=='published' else ('secondary' if c.status.value=='draft' else 'dark') }}">
+                                {{ c.status.value|capitalize }}
+                            </span>
+                        </td>
+                        <td>{{ c.created_at.strftime('%d/%m/%Y') if c.created_at }}</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('instructor_lessons', course_id=c.id) }}">
+                                <i class="fa fa-list me-1"></i> Bài học
+                            </a>
+                            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('instructor_edit_course', course_id=c.id) }}">
+                                <i class="fa fa-edit me-1"></i> Sửa
+                            </a>
+                            <form class="d-inline" method="post" action="{{ url_for('instructor_delete_course', course_id=c.id) }}" onsubmit="return confirm('Xác nhận xóa khóa học?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="fa fa-trash me-1"></i> Xóa
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info">Chưa có khóa học nào. Hãy tạo khóa học đầu tiên của bạn!</div>
+    {% endif %}
+</div>
+{% endblock %}
+
+

@@ -1,0 +1,57 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}{{ lesson.title }} - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{{ url_for('course_detail', course_id=course.id) }}">{{ course.title }}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ lesson.title }}</li>
+    </ol>
+  </nav>
+
+  <div class="mb-3 d-flex align-items-center gap-2">
+    <span class="badge bg-secondary">#{{ lesson.lesson_order }}</span>
+    <h3 class="mb-0">{{ lesson.title }}</h3>
+    {% if lesson.is_preview %}<span class="badge bg-info ms-2">Preview</span>{% endif %}
+  </div>
+
+  {% if lesson.type.value == 'video' and (embed_url or lesson.content_url) %}
+    <div class="ratio ratio-16x9 mb-3">
+      <iframe src="{{ embed_url or lesson.content_url }}" title="Video lesson" allowfullscreen
+              referrerpolicy="strict-origin-when-cross-origin"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+    </div>
+    {% if 'youtube.com/watch?v=' in (lesson.content_url or '') %}
+      <div class="alert alert-warning">Link YouTube chưa đúng dạng embed. Hệ thống đã cố gắng chuyển đổi. Nếu vẫn lỗi, hãy dùng link dạng <code>https://www.youtube.com/embed/VIDEO_ID</code>.</div>
+    {% endif %}
+  {% elif lesson.type.value == 'text' and lesson.content_data %}
+    <div class="card"><div class="card-body">
+      {{ lesson.content_data.get('html') or lesson.content_data.get('text') or 'Nội dung văn bản'|safe }}
+    </div></div>
+  {% elif lesson.type.value == 'quiz' and lesson.content_data %}
+    <div class="card"><div class="card-body">
+      <h5 class="mb-3">Quiz</h5>
+      {% for q in lesson.content_data.get('questions', []) %}
+        <div class="mb-3">
+          <div class="fw-bold">{{ loop.index }}. {{ q.get('question') }}</div>
+          <ul class="list-unstyled ms-3">
+            {% for opt in q.get('options', []) %}
+              <li>• {{ opt }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endfor %}
+    </div></div>
+  {% else %}
+    <div class="alert alert-light">Không có nội dung để hiển thị cho bài học này.</div>
+  {% endif %}
+
+  <div class="mt-3">
+    <a class="btn btn-secondary" href="{{ url_for('course_detail', course_id=course.id) }}">Quay lại khóa học</a>
+  </div>
+</div>
+{% endblock %}
+
+

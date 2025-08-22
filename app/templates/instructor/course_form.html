@@ -1,0 +1,44 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}{{ 'Sửa' if course else 'Tạo' }} khóa học{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h3 class="mb-3">{{ 'Sửa khóa học' if course else 'Tạo khóa học' }}</h3>
+  <form method="post" enctype="multipart/form-data" class="row g-3">
+    <div class="col-md-8">
+      <label class="form-label">Tiêu đề</label>
+      <input type="text" class="form-control mb-3" name="title" required value="{{ course.title if course else '' }}">
+      <label class="form-label">Mô tả</label>
+      <textarea class="form-control" name="description" rows="6">{{ course.description if course else '' }}</textarea>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Giá (VND)</label>
+      <input type="number" step="1000" min="0" class="form-control mb-3" name="price" value="{{ course.price if course else 0 }}">
+      <label class="form-label">Trình độ</label>
+      <select class="form-select mb-3" name="level">
+        {% for lvl in CourseLevel %}
+          <option value="{{ lvl.value }}" {% if course and course.level==lvl %}selected{% endif %}>{{ lvl.value|capitalize }}</option>
+        {% endfor %}
+      </select>
+      <label class="form-label">Trạng thái</label>
+      <select class="form-select mb-3" name="status">
+        {% for st in CourseStatus %}
+          <option value="{{ st.value }}" {% if course and course.status==st %}selected{% endif %}>{{ st.value|capitalize }}</option>
+        {% endfor %}
+      </select>
+      <label class="form-label">Ảnh bìa</label>
+      <input type="file" accept="image/*" class="form-control">
+      {% if course and course.cover_image %}
+        <img src="{{ course.cover_image }}" class="img-fluid mt-2 rounded border" style="max-height: 160px; object-fit: cover;"/>
+      {% endif %}
+    </div>
+    <div class="col-12 d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Lưu</button>
+      <a href="{{ url_for('instructor_courses') }}" class="btn btn-secondary">Hủy</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+

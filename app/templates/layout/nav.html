@@ -22,6 +22,9 @@
                     <div class="dropdown-menu">
                         <a href="/profile" class="dropdown-item">Hồ sơ</a>
                         <a href="/my-courses" class="dropdown-item">Khóa học của tôi</a>
+                        {% if current_user.role.value == 'instructor' and current_user.status.value == 'active' %}
+                            <a href="/instructor/courses" class="dropdown-item">Giảng dạy</a>
+                        {% endif %}
                         {% if current_user.role.value == 'admin' %}
                             <a href="/admin" class="dropdown-item">Quản trị</a>
                         {% endif %}

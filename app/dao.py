@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 # Cấu hình upload file
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -50,6 +51,24 @@ def upload_image_to_cloudinary(file, folder, public_id_prefix):
         return None
     except Exception as e:
         print(f"Error uploading image: {e}")
+        return None
+
+
+def upload_video_to_cloudinary(file, folder, public_id_prefix):
+    """Upload video lên Cloudinary và trả về URL an toàn."""
+    try:
+        if not file or not file.filename:
+            return None
+        result = cloudinary.uploader.upload(
+            file,
+            folder=folder,
+            public_id=f"{public_id_prefix}_{secure_filename(file.filename)}",
+            overwrite=True,
+            resource_type="video"
+        )
+        return result.get('secure_url')
+    except Exception as e:
+        print(f"Error uploading video: {e}")
         return None
 
 
@@ -140,7 +159,7 @@ def load_categories():
 def load_featured_courses(limit=6):
     featured_courses = (
         Course.query
-        .filter_by(status='published')
+        .filter(Course.status == CourseStatus.PUBLISHED)
         .order_by(desc(Course.created_at))
         .limit(limit)
         .all()
@@ -152,6 +171,7 @@ def load_featured_courses(limit=6):
 #   - Tên khóa học (Course.title)
 #   - Tên giảng viên (User.full_name)
 # Đã thêm bộ lọc
+
 def search_courses(keyword=None, category_id=None, price_min=None, price_max=None):
     query = Course.query.join(User, Course.instructor_id == User.id, isouter=True)
 
@@ -170,6 +190,7 @@ def search_courses(keyword=None, category_id=None, price_min=None, price_max=Non
 
 
 # Hàm lấy chi tiết khóa học theo ID
+
 def get_course_by_id(course_id: int):
     return Course.query.get(course_id)
 

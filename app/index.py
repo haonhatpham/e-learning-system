@@ -4,7 +4,7 @@ from app import login
 from app.dao import load_categories, load_featured_courses, search_courses
 from flask_login import login_user, logout_user, current_user, login_required
 from app.utils import send_welcome_email, send_registration_confirmation
-from app.models import UserRole, UserStatus, Course, CourseStatus, CourseLevel, Lesson, LessonType, Enrollment, Payment, PaymentMethod, PaymentStatus
+from app.models import UserRole, UserStatus, Course, CourseStatus, CourseLevel, Lesson, LessonType, Enrollment, Payment, PaymentMethod, PaymentStatus, Progress
 from app import admin
 from datetime import datetime
 from decimal import Decimal
@@ -84,7 +84,10 @@ def view_lesson(course_id, lesson_id):
     embed_url = None
     if lesson.type == LessonType.VIDEO:
         embed_url = dao.to_embeddable_video_url(lesson.content_url)
-    return render_template('lesson_view.html', course=course, lesson=lesson, embed_url=embed_url)
+    user_progress = None
+    if current_user.is_authenticated:
+        user_progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson.id).first()
+    return render_template('lesson_view.html', course=course, lesson=lesson, embed_url=embed_url, user_progress=user_progress)
 
 
 
@@ -758,6 +761,7 @@ def instructor_create_lesson(course_id):
         lesson_type = request.form.get('type')
         content_url = request.form.get('content_url')
         content_data_raw = request.form.get('content_data')
+        video_file = request.files.get('video_file')
         lesson_order = request.form.get('lesson_order', type=int) or 0
         duration_seconds = request.form.get('duration_seconds', type=int) or 0
         is_preview = True if request.form.get('is_preview') == 'on' else False
@@ -767,9 +771,14 @@ def instructor_create_lesson(course_id):
         except Exception:
             content_data = None
 
-        # Normalize video URLs to embeddable format (e.g., YouTube)
-        if lesson_type and lesson_type.lower() == 'video' and content_url:
-            content_url = dao.normalize_video_url(content_url)
+        # Handle video upload or normalize URL
+        if lesson_type and lesson_type.lower() == 'video':
+            if video_file and video_file.filename:
+                uploaded_url = dao.upload_video_to_cloudinary(video_file, 'e-learning/videos', f"course_{course.id}_lesson")
+                if uploaded_url:
+                    content_url = uploaded_url
+            elif content_url:
+                content_url = dao.normalize_video_url(content_url)
 
         lesson = Lesson(
             title=title,
@@ -802,6 +811,7 @@ def instructor_edit_lesson(lesson_id):
         lesson.type = LessonType(request.form.get('type'))
         content_url = request.form.get('content_url')
         content_data_raw = request.form.get('content_data')
+        video_file = request.files.get('video_file')
         try:
             lesson.content_data = json.loads(content_data_raw) if content_data_raw else None
         except Exception:
@@ -810,14 +820,57 @@ def instructor_edit_lesson(lesson_id):
         lesson.duration_seconds = request.form.get('duration_seconds', type=int) or 0
         lesson.is_preview = True if request.form.get('is_preview') == 'on' else False
 
-        # Normalize video URLs to embeddable format (e.g., YouTube)
-        if lesson.type == LessonType.VIDEO and content_url:
-            content_url = dao.normalize_video_url(content_url)
+        # Handle video upload or normalize URL
+        if lesson.type == LessonType.VIDEO:
+            if video_file and video_file.filename:
+                uploaded_url = dao.upload_video_to_cloudinary(video_file, 'e-learning/videos', f"course_{course.id}_lesson_{lesson.id}")
+                if uploaded_url:
+                    content_url = uploaded_url
+            elif content_url:
+                content_url = dao.normalize_video_url(content_url)
         lesson.content_url = content_url
         db.session.commit()
         flash('Cập nhật bài học thành công!', 'success')
         return redirect(url_for('instructor_lessons', course_id=course.id))
     return render_template('instructor/lesson_form.html', course=course, lesson=lesson, LessonType=LessonType)
+
+
+@app.route('/course/<int:course_id>/lesson/<int:lesson_id>/submit-quiz', methods=['POST'])
+@login_required
+def submit_quiz(course_id, lesson_id):
+    course = Course.query.get_or_404(course_id)
+    lesson = Lesson.query.filter_by(id=lesson_id, course_id=course.id).first_or_404()
+    if not can_view_lesson(lesson, course):
+        flash('Bạn không có quyền nộp bài cho bài học này.', 'error')
+        return redirect(url_for('course_detail', course_id=course.id))
+
+    if lesson.type != LessonType.QUIZ or not lesson.content_data:
+        flash('Bài học không phải quiz hoặc thiếu dữ liệu.', 'error')
+        return redirect(url_for('view_lesson', course_id=course.id, lesson_id=lesson.id))
+
+    questions = lesson.content_data.get('questions', []) if isinstance(lesson.content_data, dict) else []
+    total = len(questions)
+    correct = 0
+    for idx, q in enumerate(questions):
+        try:
+            selected = request.form.get(f'q{idx}')
+            expected = q.get('answer')
+            if selected is not None and expected is not None and int(selected) == int(expected):
+                correct += 1
+        except Exception:
+            pass
+
+    progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson.id).first()
+    if not progress:
+        progress = Progress(user_id=current_user.id, lesson_id=lesson.id)
+        db.session.add(progress)
+    progress.score = correct
+    progress.is_completed = True
+    progress.completed_at = datetime.now()
+    db.session.commit()
+
+    flash(f'Bạn đã nộp quiz. Điểm: {correct}/{total}', 'success')
+    return redirect(url_for('view_lesson', course_id=course.id, lesson_id=lesson.id))
 
 
 @app.route('/instructor/lessons/<int:lesson_id>/delete', methods=['POST'])

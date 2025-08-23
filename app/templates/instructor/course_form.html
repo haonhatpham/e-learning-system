@@ -28,7 +28,7 @@
         {% endfor %}
       </select>
       <label class="form-label">Ảnh bìa</label>
-      <input type="file" accept="image/*" class="form-control">
+      <input type="file" accept="image/*" class="form-control" name="cover_image">
       {% if course and course.cover_image %}
         <img src="{{ course.cover_image }}" class="img-fluid mt-2 rounded border" style="max-height: 160px; object-fit: cover;"/>
       {% endif %}

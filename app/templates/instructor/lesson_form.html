@@ -5,26 +5,135 @@
 {% block content %}
 <div class="container py-4">
     <h3 class="mb-3">{{ 'Sửa bài học' if lesson else 'Thêm bài học' }} - {{ course.title }}</h3>
-    <form method="post">
+    <form method="post" enctype="multipart/form-data" id="lesson_form">
         <div class="row g-3">
             <div class="col-md-8">
                 <div class="mb-3">
                     <label class="form-label">Tiêu đề</label>
                     <input type="text" class="form-control" name="title" required value="{{ lesson.title if lesson else '' }}">
                 </div>
-                <div class="mb-3">
+                <div class="mb-3" id="content_url_group">
                     <label class="form-label">URL nội dung (video, tài liệu...)</label>
-                    <input type="text" class="form-control" name="content_url" value="{{ lesson.content_url if lesson else '' }}">
+                    <input type="text" class="form-control" name="content_url" value="{{ lesson.content_url if lesson else '' }}" placeholder="Ví dụ: https://www.youtube.com/watch?v=... hoặc link tài liệu">
+                    <div class="form-text">VIDEO: dán link YouTube/Vimeo, hệ thống tự chuyển về dạng nhúng.</div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Dữ liệu nội dung (JSON) - dùng cho quiz, text...</label>
-                    <textarea class="form-control" name="content_data" rows="8">{{ lesson.content_data|tojson if lesson and lesson.content_data else '' }}</textarea>
+                <div class="mb-3" id="video_file_group">
+                    <label class="form-label">Tải lên video (tùy chọn)</label>
+                    <input type="file" class="form-control" name="video_file" accept="video/*">
+                    <div class="form-text">Nếu chọn file video, hệ thống sẽ tự upload lên Cloudinary và dùng URL đó.</div>
+                </div>
+
+                <!-- QUIZ BUILDER -->
+                <div class="mb-3" id="quiz_builder_group">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0">Quiz Builder (không cần JSON)</label>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="toggle_json_btn">Hiển thị JSON nâng cao</button>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-sm-4">
+                            <label class="form-label">Thời gian (giây)</label>
+                            <input type="number" class="form-control" id="qb_time_limit" min="0" placeholder="vd: 600">
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label">Số lần làm</label>
+                            <input type="number" class="form-control" id="qb_attempts" min="1" value="1">
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label">Trộn câu</label>
+                            <select class="form-select" id="qb_shuffle">
+                                <option value="true">Có</option>
+                                <option value="false" selected>Không</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label">Chế độ Test/Exam</label>
+                            <select class="form-select" id="qb_exam_mode">
+                                <option value="false" selected>Không</option>
+                                <option value="true">Bật</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label">Hiện đáp án sau nộp</label>
+                            <select class="form-select" id="qb_feedback_show">
+                                <option value="true" selected>Có</option>
+                                <option value="false">Không</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label">Điểm đạt (tùy chọn)</label>
+                            <input type="number" class="form-control" id="qb_pass_score" min="0" placeholder="vd: 6">
+                        </div>
+                    </div>
+                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                        <div class="fw-bold">Danh sách câu hỏi</div>
+                        <button type="button" class="btn btn-sm btn-primary" id="btn_add_question">+ Thêm câu hỏi</button>
+                    </div>
+                    <div id="questions_container"></div>
+                </div>
+                <!-- /QUIZ BUILDER -->
+
+                <!-- ASSIGNMENT BUILDER -->
+                <div class="mb-3" id="assignment_builder_group">
+                    <label class="form-label">Assignment Builder (không cần JSON)</label>
+                    <div class="mb-2">
+                        <label class="form-label">Mô tả</label>
+                        <textarea class="form-control" id="ab_description" rows="4" placeholder="Mô tả ngắn gọn về bài tập"></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Hướng dẫn chi tiết</label>
+                        <textarea class="form-control" id="ab_instructions" rows="5" placeholder="Quy định nộp bài, tiêu chí chấm..."></textarea>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-sm-6">
+                            <label class="form-label">Hạn nộp</label>
+                            <input type="datetime-local" class="form-control" id="ab_due_date">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label">Điểm tối đa</label>
+                            <input type="number" class="form-control" id="ab_max_score" min="1" value="10">
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-sm-6">
+                            <label class="form-label">Cách nộp</label>
+                            <select class="form-select" id="ab_submission_type">
+                                <option value="link_or_text" selected>Link hoặc văn bản</option>
+                                <option value="link_only">Chỉ link</option>
+                                <option value="text_only">Chỉ văn bản</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label">Yêu cầu kèm theo (tùy chọn)</label>
+                            <input type="text" class="form-control" id="ab_required" placeholder="ví dụ: report_link">
+                        </div>
+                    </div>
+                </div>
+                <!-- /ASSIGNMENT BUILDER -->
+
+                <div class="mb-3" id="text_editor_group">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0">Trình soạn thảo văn bản (TEXT)</label>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="toggle_text_json_btn">Hiển thị JSON nâng cao</button>
+                    </div>
+                    <div id="text_editor" style="height: 260px; background: #fff;"></div>
+                </div>
+
+                <div class="mb-3" id="content_data_group">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <label class="form-label mb-0">Dữ liệu nội dung (JSON)</label>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSampleText">Mẫu TEXT</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSampleQuiz">Mẫu QUIZ</button>
+                        </div>
+                    </div>
+                    <textarea class="form-control" name="content_data" rows="8" placeholder='{"html": "<p>Nội dung</p>"} hoặc {"questions": [...]}'>{{ lesson.content_data|tojson if lesson and lesson.content_data else '' }}</textarea>
+                    <div class="form-text">TEXT/QUIZ/ASSIGNMENT: nhập JSON theo mẫu. Sai định dạng sẽ bị bỏ qua.</div>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="mb-3">
                     <label class="form-label">Loại bài học</label>
-                    <select class="form-select" name="type">
+                    <select class="form-select" name="type" id="lesson_type">
                         {% for lt in LessonType %}
                             <option value="{{ lt.value }}" {% if lesson and lesson.type==lt %}selected{% endif %}>{{ lt.value|upper }}</option>
                         {% endfor %}
@@ -51,6 +160,327 @@
         </div>
     </form>
 </div>
+
+<script>
+(function() {
+  const form = document.getElementById('lesson_form');
+  const typeSelect = document.getElementById('lesson_type');
+  const urlGroup = document.getElementById('content_url_group');
+  const dataGroup = document.getElementById('content_data_group');
+  const videoGroup = document.getElementById('video_file_group');
+  const quizGroup = document.getElementById('quiz_builder_group');
+  const textGroup = document.getElementById('text_editor_group');
+  const textJsonToggleBtn = document.getElementById('toggle_text_json_btn');
+  const textarea = dataGroup ? dataGroup.querySelector('textarea[name="content_data"]') : null;
+
+  const btnSampleText = document.getElementById('btnSampleText');
+  const btnSampleQuiz = document.getElementById('btnSampleQuiz');
+  const toggleJsonBtn = document.getElementById('toggle_json_btn');
+
+  const timeLimit = document.getElementById('qb_time_limit');
+  const attempts = document.getElementById('qb_attempts');
+  const shuffle = document.getElementById('qb_shuffle');
+  const fbShow = document.getElementById('qb_feedback_show');
+  const examMode = document.getElementById('qb_exam_mode');
+  const passScore = document.getElementById('qb_pass_score');
+  const addQuestionBtn = document.getElementById('btn_add_question');
+  const questionsContainer = document.getElementById('questions_container');
+
+  // Assignment builder refs
+  const assignGroup = document.getElementById('assignment_builder_group');
+  const abDesc = document.getElementById('ab_description');
+  const abInstr = document.getElementById('ab_instructions');
+  const abDue = document.getElementById('ab_due_date');
+  const abMax = document.getElementById('ab_max_score');
+  const abType = document.getElementById('ab_submission_type');
+  const abReq = document.getElementById('ab_required');
+
+  function toggleFields() {
+    const t = (typeSelect ? typeSelect.value : '').toLowerCase();
+    if (!urlGroup || !dataGroup || !videoGroup || !quizGroup || !assignGroup || !textGroup) return;
+    if (t === 'video') {
+      urlGroup.style.display = '';
+      videoGroup.style.display = '';
+      quizGroup.style.display = 'none';
+      textGroup.style.display = 'none';
+      assignGroup.style.display = 'none';
+      dataGroup.style.display = 'none';
+    } else if (t === 'text') {
+      urlGroup.style.display = 'none';
+      videoGroup.style.display = 'none';
+      quizGroup.style.display = 'none';
+      assignGroup.style.display = 'none';
+      textGroup.style.display = '';
+      dataGroup.style.display = 'none';
+    } else if (t === 'quiz' || t === 'assignment') {
+      urlGroup.style.display = 'none';
+      videoGroup.style.display = 'none';
+      if (t === 'quiz') {
+        quizGroup.style.display = '';
+        assignGroup.style.display = 'none';
+        dataGroup.style.display = 'none';
+        textGroup.style.display = 'none';
+      } else {
+        quizGroup.style.display = 'none';
+        assignGroup.style.display = '';
+        textGroup.style.display = 'none';
+        dataGroup.style.display = 'none';
+      }
+    } else {
+      urlGroup.style.display = '';
+      videoGroup.style.display = '';
+      quizGroup.style.display = '';
+      assignGroup.style.display = '';
+      textGroup.style.display = '';
+      dataGroup.style.display = '';
+    }
+  }
+
+  function setSampleText() {
+    if (!textarea) return;
+    const sample = {
+      html: "<h4>Nội dung văn bản</h4><p>Viết nội dung bài học ở đây.</p>"
+    };
+    textarea.value = JSON.stringify(sample, null, 2);
+  }
+
+  function setSampleQuiz() {
+    if (!textarea) return;
+    const sample = {
+      title: "Quiz nhanh",
+      questions: [
+        {
+          question: "Python là ngôn ngữ kiểu gì?",
+          options: ["Thông dịch", "Biên dịch", "Máy"],
+          answer: 0
+        }
+      ]
+    };
+    textarea.value = JSON.stringify(sample, null, 2);
+  }
+
+  function makeQuestionCard(idx, data) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'card mb-2';
+    wrapper.innerHTML = `
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-bold">Câu hỏi #<span class="q-number">${idx + 1}</span></div>
+          <button type="button" class="btn btn-sm btn-outline-danger btn-remove">Xóa</button>
+        </div>
+        <div class="mb-2">
+          <input type="text" class="form-control q-text" placeholder="Nhập nội dung câu hỏi" value="${data?.question || ''}">
+        </div>
+        <div class="row g-2">
+          ${[0,1,2,3].map(i => `
+            <div class="col-md-6">
+              <div class="input-group">
+                <div class="input-group-text">
+                  <input class="form-check-input mt-0 q-correct" name="q_correct_${idx}" type="radio" value="${i}" ${data && data.answer === i ? 'checked' : ''}>
+                </div>
+                <input type="text" class="form-control q-opt" placeholder="Đáp án ${i+1}" value="${data?.options?.[i] || ''}">
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    // Remove handler
+    wrapper.querySelector('.btn-remove').addEventListener('click', () => {
+      wrapper.remove();
+      renumber();
+    });
+    return wrapper;
+  }
+
+  function renumber() {
+    const cards = questionsContainer.querySelectorAll('.card');
+    cards.forEach((card, i) => {
+      const num = card.querySelector('.q-number');
+      if (num) num.textContent = String(i + 1);
+      const radios = card.querySelectorAll('.q-correct');
+      radios.forEach(r => {
+        r.setAttribute('name', `q_correct_${i}`);
+      });
+    });
+  }
+
+  function addQuestion(data) {
+    const idx = questionsContainer.querySelectorAll('.card').length;
+    const card = makeQuestionCard(idx, data || {});
+    questionsContainer.appendChild(card);
+    renumber();
+  }
+
+  function serializeQuiz() {
+    const cards = questionsContainer.querySelectorAll('.card');
+    const questions = [];
+    cards.forEach((card, i) => {
+      const qText = card.querySelector('.q-text').value.trim();
+      const opts = Array.from(card.querySelectorAll('.q-opt')).map(o => o.value.trim());
+      const correctEl = card.querySelector(`input[name="q_correct_${i}"]:checked`);
+      const answer = correctEl ? parseInt(correctEl.value, 10) : null;
+      if (qText && opts.filter(x => x).length >= 2 && answer !== null) {
+        questions.push({ question: qText, options: opts, answer: answer });
+      }
+    });
+    const titleInput = document.querySelector('input[name="title"]');
+    const obj = {
+      title: titleInput ? titleInput.value : 'Quiz',
+      time_limit_sec: timeLimit.value ? parseInt(timeLimit.value, 10) : undefined,
+      attempts_allowed: attempts.value ? parseInt(attempts.value, 10) : 1,
+      shuffle: shuffle.value === 'true',
+      feedback: { show_correct_after_submit: fbShow.value === 'true' },
+      pass_score: passScore.value ? parseInt(passScore.value, 10) : undefined,
+      questions: questions
+    };
+    if (examMode && examMode.value === 'true') {
+      obj.mode = 'exam';
+      if (!obj.attempts_allowed || obj.attempts_allowed > 1) obj.attempts_allowed = 1;
+      if (obj.feedback) obj.feedback.show_correct_after_submit = false;
+    }
+    // Clean undefined
+    Object.keys(obj).forEach(k => { if (obj[k] === undefined) delete obj[k]; });
+    return obj;
+  }
+
+  function serializeAssignment() {
+    const titleInput = document.querySelector('input[name="title"]');
+    const obj = {
+      title: titleInput ? titleInput.value : 'Assignment',
+      description: abDesc ? abDesc.value : undefined,
+      instructions: abInstr ? abInstr.value : undefined,
+      due_date: abDue && abDue.value ? new Date(abDue.value).toISOString() : undefined,
+      max_score: abMax && abMax.value ? parseInt(abMax.value, 10) : undefined,
+      submission: {
+        type: abType ? abType.value : 'link_or_text',
+        required: abReq && abReq.value ? abReq.value.split(',').map(s => s.trim()).filter(Boolean) : undefined
+      }
+    };
+    if (obj.submission && obj.submission.required === undefined) delete obj.submission.required;
+    Object.keys(obj).forEach(k => { if (obj[k] === undefined) delete obj[k]; });
+    return obj;
+  }
+
+  function loadFromJson() {
+    if (!textarea || !textarea.value) return;
+    try {
+      const data = JSON.parse(textarea.value);
+      questionsContainer.innerHTML = '';
+      if (data.time_limit_sec) timeLimit.value = data.time_limit_sec;
+      if (data.attempts_allowed) attempts.value = data.attempts_allowed;
+      if (typeof data.shuffle === 'boolean') shuffle.value = String(data.shuffle);
+      if (data.feedback && typeof data.feedback.show_correct_after_submit === 'boolean') {
+        fbShow.value = String(data.feedback.show_correct_after_submit);
+      }
+      if (data.pass_score) passScore.value = data.pass_score;
+      (data.questions || []).forEach(q => addQuestion(q));
+    } catch (e) { /* ignore */ }
+  }
+
+  // Events
+  if (typeSelect) {
+    typeSelect.addEventListener('change', toggleFields);
+    toggleFields();
+  }
+  if (btnSampleText) btnSampleText.addEventListener('click', setSampleText);
+  if (btnSampleQuiz) btnSampleQuiz.addEventListener('click', setSampleQuiz);
+  if (addQuestionBtn) addQuestionBtn.addEventListener('click', () => addQuestion());
+  if (toggleJsonBtn) toggleJsonBtn.addEventListener('click', () => {
+    if (dataGroup.style.display === 'none') {
+      // show JSON
+      dataGroup.style.display = '';
+      // also sync from builder to JSON for transparency
+      const obj = serializeQuiz();
+      if (textarea) textarea.value = JSON.stringify(obj, null, 2);
+      toggleJsonBtn.textContent = 'Ẩn JSON nâng cao';
+    } else {
+      dataGroup.style.display = 'none';
+      toggleJsonBtn.textContent = 'Hiển thị JSON nâng cao';
+    }
+  });
+
+  // If editing existing QUIZ with JSON, preload builder
+  (function initialLoad() {
+    const t = (typeSelect ? typeSelect.value : '').toLowerCase();
+    if (t === 'quiz') {
+      if (textarea && textarea.value) loadFromJson();
+      if (questionsContainer.childElementCount === 0) addQuestion();
+    } else if (t === 'assignment') {
+      // If editing assignment with existing JSON, show JSON button and keep builder empty (no reverse mapping for now)
+    } else if (t === 'text') {
+      // load existing html into editor later after Quill init
+    }
+  })();
+
+  // On submit: if QUIZ/TEXT/ASSIGNMENT, write JSON from builder/editor into textarea
+  if (form) form.addEventListener('submit', () => {
+    const t = (typeSelect ? typeSelect.value : '').toLowerCase();
+    if (t === 'quiz' && textarea) {
+      const obj = serializeQuiz();
+      textarea.value = JSON.stringify(obj, null, 2);
+    } else if (t === 'assignment' && textarea) {
+      const obj = serializeAssignment();
+      textarea.value = JSON.stringify(obj, null, 2);
+    } else if (t === 'text' && textarea && window.__quill) {
+      const html = window.__quill.root.innerHTML;
+      const obj = { html: html };
+      textarea.value = JSON.stringify(obj, null, 2);
+    }
+  });
+
+  // Toggle JSON for TEXT
+  if (textJsonToggleBtn) textJsonToggleBtn.addEventListener('click', () => {
+    if (dataGroup.style.display === 'none') {
+      // show JSON and sync from editor
+      const obj = { html: window.__quill ? window.__quill.root.innerHTML : '' };
+      if (textarea) textarea.value = JSON.stringify(obj, null, 2);
+      dataGroup.style.display = '';
+      textJsonToggleBtn.textContent = 'Ẩn JSON nâng cao';
+    } else {
+      dataGroup.style.display = 'none';
+      textJsonToggleBtn.textContent = 'Hiển thị JSON nâng cao';
+    }
+  });
+})();
+</script>
+
+<!-- Quill (WYSIWYG) for TEXT -->
+<link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+<script>
+(function() {
+  const typeSelect = document.getElementById('lesson_type');
+  const t = (typeSelect ? typeSelect.value : '').toLowerCase();
+  const editorEl = document.getElementById('text_editor');
+  if (!editorEl) return;
+  const quill = new Quill(editorEl, {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        [{ header: [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        ['link', 'blockquote', 'code-block'],
+        [{ 'align': [] }],
+        ['clean']
+      ]
+    }
+  });
+  window.__quill = quill;
+
+  // load existing TEXT html if any
+  try {
+    const textarea = document.querySelector('textarea[name="content_data"]');
+    if (textarea && textarea.value) {
+      const data = JSON.parse(textarea.value);
+      if (data && (data.html || data.text)) {
+        quill.root.innerHTML = data.html || data.text;
+      }
+    }
+  } catch (e) {}
+})();
+</script>
 {% endblock %}
 
 

@@ -18,11 +18,15 @@
   </div>
 
   {% if lesson.type.value == 'video' and (embed_url or lesson.content_url) %}
-    <div class="ratio ratio-16x9 mb-3">
-      <iframe src="{{ embed_url or lesson.content_url }}" title="Video lesson" allowfullscreen
-              referrerpolicy="strict-origin-when-cross-origin"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
-    </div>
+    {% if embed_url and ('youtube.com' in embed_url or 'player.vimeo.com' in embed_url) %}
+      <div class="ratio ratio-16x9 mb-3">
+        <iframe src="{{ embed_url }}" title="Video lesson" allowfullscreen
+                referrerpolicy="strict-origin-when-cross-origin"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+      </div>
+    {% else %}
+      <video class="w-100 mb-3" controls src="{{ embed_url or lesson.content_url }}"></video>
+    {% endif %}
     {% if 'youtube.com/watch?v=' in (lesson.content_url or '') %}
       <div class="alert alert-warning">Link YouTube chưa đúng dạng embed. Hệ thống đã cố gắng chuyển đổi. Nếu vẫn lỗi, hãy dùng link dạng <code>https://www.youtube.com/embed/VIDEO_ID</code>.</div>
     {% endif %}
@@ -32,17 +36,28 @@
     </div></div>
   {% elif lesson.type.value == 'quiz' and lesson.content_data %}
     <div class="card"><div class="card-body">
-      <h5 class="mb-3">Quiz</h5>
-      {% for q in lesson.content_data.get('questions', []) %}
-        <div class="mb-3">
-          <div class="fw-bold">{{ loop.index }}. {{ q.get('question') }}</div>
-          <ul class="list-unstyled ms-3">
-            {% for opt in q.get('options', []) %}
-              <li>• {{ opt }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-      {% endfor %}
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-3">Quiz</h5>
+        {% if user_progress and user_progress.score is not none %}
+          <span class="badge bg-success">Điểm: {{ user_progress.score }}/{{ lesson.content_data.get('questions', [])|length }}</span>
+        {% endif %}
+      </div>
+      <form method="post" action="{{ url_for('submit_quiz', course_id=course.id, lesson_id=lesson.id) }}">
+        {% for q in lesson.content_data.get('questions', []) %}
+          <div class="mb-3">
+            <div class="fw-bold">{{ loop.index }}. {{ q.get('question') }}</div>
+            <div class="ms-2">
+              {% for opt in q.get('options', []) %}
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="q{{ loop.parent.index0 }}" id="q{{ loop.parent.index0 }}_{{ loop.index0 }}" value="{{ loop.index0 }}">
+                  <label class="form-check-label" for="q{{ loop.parent.index0 }}_{{ loop.index0 }}">{{ opt }}</label>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Nộp bài</button>
+      </form>
     </div></div>
   {% else %}
     <div class="alert alert-light">Không có nội dung để hiển thị cho bài học này.</div>

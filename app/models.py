@@ -128,7 +128,7 @@ class Lesson(BaseModel):
     is_preview = Column(Boolean, default=False)
 
     # Relationships
-    progress_records = relationship('Progress', backref='lesson', lazy=True)
+    progress_records = relationship('Progress', backref='lesson', lazy=True, cascade='all, delete-orphan')
 
 
 # Enrollment Model - Kế thừa từ BaseModel

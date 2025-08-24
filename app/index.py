@@ -14,7 +14,7 @@ import hmac
 import hashlib
 import json
 import requests
-
+from bs4 import BeautifulSoup
 
 @app.route("/")
 def index():
@@ -78,21 +78,57 @@ def can_view_lesson(lesson: Lesson, course: Course) -> bool:
 def view_lesson(course_id, lesson_id):
     course = Course.query.get_or_404(course_id)
     lesson = Lesson.query.filter_by(id=lesson_id, course_id=course.id).first_or_404()
+
     if not can_view_lesson(lesson, course):
         flash('Bạn cần đăng ký khóa học để xem bài học này (trừ preview).', 'warning')
         return redirect(url_for('course_detail', course_id=course.id))
+
+    # Xử lý video
     embed_url = None
     if lesson.type == LessonType.VIDEO:
-        embed_url = dao.to_embeddable_video_url(lesson.content_url)
+        if lesson.content_url:
+            embed_url = dao.to_embeddable_video_url(lesson.content_url)
+
+    # Xử lý text
+    raw_html = (lesson.content_data or {}).get('html', '')
+    soup = BeautifulSoup(raw_html, 'html.parser')
+    # Bỏ h1 và strong
+    for tag in soup.find_all(['h1', 'strong']):
+        tag.unwrap()
+    text_content = str(soup) if raw_html else ''
+
+    # Xử lý quiz
+    questions = []
+    if lesson.type == LessonType.QUIZ:
+        raw_questions = (lesson.content_data or {}).get("questions", [])
+        for i, q in enumerate(raw_questions):
+            q_copy = q.copy()
+            q_copy["index"] = i
+            questions.append(q_copy)
+
+    # Lấy tiến độ của user
     user_progress = None
     if current_user.is_authenticated:
-        user_progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson.id).first()
-    return render_template('lesson_view.html', course=course, lesson=lesson, embed_url=embed_url, user_progress=user_progress)
+        user_progress = Progress.query.filter_by(
+            user_id=current_user.id,
+            lesson_id=lesson.id
+        ).first()
+
+    return render_template(
+        'lesson_view.html',
+        course=course,
+        lesson=lesson,
+        embed_url=embed_url,
+        text_content=text_content,
+        user_progress=user_progress,
+        show_answers=False,
+        questions=questions
+    )
 
 
 
 
-    return render_template('index.html', categories=categories, featured_courses=featured_courses)
+
 
 @app.route("/login-admin", methods=['post'])
 def login_admin_process():
@@ -835,55 +871,71 @@ def instructor_edit_lesson(lesson_id):
     return render_template('instructor/lesson_form.html', course=course, lesson=lesson, LessonType=LessonType)
 
 
-@app.route('/course/<int:course_id>/lesson/<int:lesson_id>/submit-quiz', methods=['POST'])
+@app.route('/course/<int:course_id>/lesson/<int:lesson_id>/submit_quiz', methods=['POST'])
 @login_required
 def submit_quiz(course_id, lesson_id):
-    course = Course.query.get_or_404(course_id)
-    lesson = Lesson.query.filter_by(id=lesson_id, course_id=course.id).first_or_404()
-    if not can_view_lesson(lesson, course):
-        flash('Bạn không có quyền nộp bài cho bài học này.', 'error')
-        return redirect(url_for('course_detail', course_id=course.id))
+    lesson = Lesson.query.filter_by(id=lesson_id, course_id=course_id).first_or_404()
+    quiz = lesson.content_data
+    questions = quiz.get("questions", [])
 
-    if lesson.type != LessonType.QUIZ or not lesson.content_data:
-        flash('Bài học không phải quiz hoặc thiếu dữ liệu.', 'error')
-        return redirect(url_for('view_lesson', course_id=course.id, lesson_id=lesson.id))
+    # Lấy đáp án người dùng
+    user_answers = []
+    score = 0
+    for i, q in enumerate(questions):
+        ans = request.form.get(f"q{i}")
+        user_answers.append(int(ans) if ans is not None else None)
+        if ans is not None and int(ans) == q["answer"]:
+            score += 1
 
-    questions = lesson.content_data.get('questions', []) if isinstance(lesson.content_data, dict) else []
-    total = len(questions)
-    correct = 0
-    for idx, q in enumerate(questions):
-        try:
-            selected = request.form.get(f'q{idx}')
-            expected = q.get('answer')
-            if selected is not None and expected is not None and int(selected) == int(expected):
-                correct += 1
-        except Exception:
-            pass
-
+    # Lưu tiến độ (cập nhật nếu đã có)
     progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson.id).first()
     if not progress:
         progress = Progress(user_id=current_user.id, lesson_id=lesson.id)
         db.session.add(progress)
-    progress.score = correct
-    progress.is_completed = True
-    progress.completed_at = datetime.now()
+    progress.score = score
+    progress.answers = user_answers  # lưu các câu trả lời người dùng
     db.session.commit()
 
-    flash(f'Bạn đã nộp quiz. Điểm: {correct}/{total}', 'success')
-    return redirect(url_for('view_lesson', course_id=course.id, lesson_id=lesson.id))
+    flash(f'Bạn đã nộp quiz. Điểm: {score}/{len(questions)}', 'success')
+
+    # Truyền show_answers=True để template hiển thị đúng/sai
+    # Thêm index cho từng câu hỏi để template không cần enumerate
+    quiz_with_index = []
+    for i, q in enumerate(questions):
+        q_copy = q.copy()
+        q_copy["index"] = i
+        quiz_with_index.append(q_copy)
+
+    return render_template(
+        'lesson_view.html',
+        course=lesson.course,
+        lesson=lesson,
+        user_progress=progress,
+        show_answers=True,
+        questions=quiz_with_index
+    )
 
 
 @app.route('/instructor/lessons/<int:lesson_id>/delete', methods=['POST'])
 @login_required
 def instructor_delete_lesson(lesson_id):
+    # Kiểm tra quyền instructor
     guard = require_instructor_active()
     if guard:
         return guard
+
+    # Lấy bài học, đảm bảo bài học thuộc khóa học của instructor
     lesson = Lesson.query.get_or_404(lesson_id)
     course = Course.query.filter_by(id=lesson.course_id, instructor_id=current_user.id).first_or_404()
-    db.session.delete(lesson)
-    db.session.commit()
-    flash('Đã xóa bài học.', 'success')
+
+    try:
+        db.session.delete(lesson)  # Cascade sẽ xóa các Progress liên quan
+        db.session.commit()
+        flash('Đã xóa bài học cùng tất cả tiến trình liên quan.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Xóa bài học thất bại: {str(e)}', 'danger')
+
     return redirect(url_for('instructor_lessons', course_id=course.id))
 
 

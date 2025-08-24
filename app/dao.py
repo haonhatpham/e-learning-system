@@ -519,3 +519,10 @@ def to_embeddable_video_url(url: str) -> str:
         return url
 
 
+def get_quiz_questions(lesson_id: int):
+    lesson = Lesson.query.get(lesson_id)
+    if not lesson:
+        return None
+    if lesson.type != LessonType.QUIZ:
+        return None  #
+    return lesson.content_data.get("questions", [])

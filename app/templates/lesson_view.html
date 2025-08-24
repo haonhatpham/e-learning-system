@@ -1,72 +1,100 @@
-{% extends 'layout/base.html' %}
+{% extends "layout/base.html" %}
 
-{% block title %}{{ lesson.title }} - {{ course.title }}{% endblock %}
+{% block title %}
+{{ lesson.title }} - {{ course.title }}
+{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-  <nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{{ url_for('course_detail', course_id=course.id) }}">{{ course.title }}</a></li>
-      <li class="breadcrumb-item active" aria-current="page">{{ lesson.title }}</li>
-    </ol>
-  </nav>
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('course_detail', course_id=course.id) }}">{{ course.title }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ lesson.title }}</li>
+        </ol>
+    </nav>
 
-  <div class="mb-3 d-flex align-items-center gap-2">
-    <span class="badge bg-secondary">#{{ lesson.lesson_order }}</span>
-    <h3 class="mb-0">{{ lesson.title }}</h3>
-    {% if lesson.is_preview %}<span class="badge bg-info ms-2">Preview</span>{% endif %}
-  </div>
-
-  {% if lesson.type.value == 'video' and (embed_url or lesson.content_url) %}
-    {% if embed_url and ('youtube.com' in embed_url or 'player.vimeo.com' in embed_url) %}
-      <div class="ratio ratio-16x9 mb-3">
-        <iframe src="{{ embed_url }}" title="Video lesson" allowfullscreen
-                referrerpolicy="strict-origin-when-cross-origin"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
-      </div>
-    {% else %}
-      <video class="w-100 mb-3" controls src="{{ embed_url or lesson.content_url }}"></video>
-    {% endif %}
-    {% if 'youtube.com/watch?v=' in (lesson.content_url or '') %}
-      <div class="alert alert-warning">Link YouTube chưa đúng dạng embed. Hệ thống đã cố gắng chuyển đổi. Nếu vẫn lỗi, hãy dùng link dạng <code>https://www.youtube.com/embed/VIDEO_ID</code>.</div>
-    {% endif %}
-  {% elif lesson.type.value == 'text' and lesson.content_data %}
-    <div class="card"><div class="card-body">
-      {{ lesson.content_data.get('html') or lesson.content_data.get('text') or 'Nội dung văn bản'|safe }}
-    </div></div>
-  {% elif lesson.type.value == 'quiz' and lesson.content_data %}
-    <div class="card"><div class="card-body">
-      <div class="d-flex justify-content-between align-items-center">
-        <h5 class="mb-3">Quiz</h5>
-        {% if user_progress and user_progress.score is not none %}
-          <span class="badge bg-success">Điểm: {{ user_progress.score }}/{{ lesson.content_data.get('questions', [])|length }}</span>
+    <!-- Lesson Header -->
+    <div class="mb-3 d-flex align-items-center gap-2">
+        <span class="badge bg-secondary">#{{ lesson.lesson_order }}</span>
+        <h3 class="mb-0">{{ lesson.title }}</h3>
+        {% if lesson.is_preview %}
+            <span class="badge bg-info ms-2">Preview</span>
         {% endif %}
-      </div>
-      <form method="post" action="{{ url_for('submit_quiz', course_id=course.id, lesson_id=lesson.id) }}">
-        {% for q in lesson.content_data.get('questions', []) %}
-          <div class="mb-3">
-            <div class="fw-bold">{{ loop.index }}. {{ q.get('question') }}</div>
-            <div class="ms-2">
-              {% for opt in q.get('options', []) %}
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="q{{ loop.parent.index0 }}" id="q{{ loop.parent.index0 }}_{{ loop.index0 }}" value="{{ loop.index0 }}">
-                  <label class="form-check-label" for="q{{ loop.parent.index0 }}_{{ loop.index0 }}">{{ opt }}</label>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-        {% endfor %}
-        <button type="submit" class="btn btn-primary">Nộp bài</button>
-      </form>
-    </div></div>
-  {% else %}
-    <div class="alert alert-light">Không có nội dung để hiển thị cho bài học này.</div>
-  {% endif %}
+    </div>
 
-  <div class="mt-3">
-    <a class="btn btn-secondary" href="{{ url_for('course_detail', course_id=course.id) }}">Quay lại khóa học</a>
-  </div>
+    <!-- Lesson Content -->
+    {% if lesson.type.value == 'text' %}
+    <div class="card mb-3">
+        <div class="card-body">
+            {% if text_content %}
+                {{ text_content | safe }}
+            {% else %}
+                <p>Nội dung chưa có.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% elif lesson.type.value == 'video' %}
+        <!-- Video Section -->
+        {% if embed_url %}
+        <div class="ratio ratio-16x9 mb-3">
+            <iframe src="{{ embed_url }}" allowfullscreen></iframe>
+        </div>
+        {% else %}
+        <video class="w-100 mb-3" controls src="{{ lesson.content_url }}"></video>
+        {% endif %}
+    {% elif lesson.type.value == 'quiz' %}
+        <!-- Quiz Section -->
+        {% set quiz = lesson.content_data %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="mb-3">{{ quiz.get('title', 'Quiz') }}</h5>
+                {% if questions %}
+                <form method="post" action="{{ url_for('submit_quiz', course_id=course.id, lesson_id=lesson.id) }}">
+                    {% for q in questions %}
+                    <div class="mb-3">
+                        <div class="fw-bold">{{ q.index + 1 }}. {{ q.question }}</div>
+                        <div class="ms-2">
+                            {% for opt_index in range(q.options|length) %}
+                                {% set opt = q.options[opt_index] %}
+                                {% set is_correct = show_answers and (opt_index == q.answer) %}
+                                {% set is_selected = show_answers and user_progress and user_progress.answers[q.index] == opt_index %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="q{{ q.index }}"
+                                           id="q{{ q.index }}_{{ opt_index }}" value="{{ opt_index }}"
+                                           {% if show_answers %} disabled {% endif %}
+                                           {% if is_selected %} checked {% endif %}>
+                                    <label class="form-check-label"
+                                           for="q{{ q.index }}_{{ opt_index }}"
+                                           {% if show_answers %}
+                                           style="color: {% if is_correct %}green{% elif is_selected %}red{% endif %}; font-weight: bold;"
+                                           {% endif %}>
+                                        {{ opt }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary">Nộp bài</button>
+                </form>
+                {% else %}
+                <div class="alert alert-warning">Quiz chưa có câu hỏi nào.</div>
+                {% endif %}
+
+                {% if user_progress and show_answers %}
+                <div class="mt-3">
+                    <span class="badge bg-success">Điểm: {{ user_progress.score }}/{{ questions|length }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+    <div class="alert alert-light">Không có nội dung hiển thị.</div>
+    {% endif %}
+
+    <div class="mt-3">
+        <a class="btn btn-secondary" href="{{ url_for('course_detail', course_id=course.id) }}">Quay lại khóa học</a>
+    </div>
 </div>
 {% endblock %}
-
-

@@ -112,10 +112,12 @@
 
                 <div class="mb-3" id="text_editor_group">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <label class="form-label mb-0">Trình soạn thảo văn bản (TEXT)</label>
+                        <label class="form-label mb-0">Trình soạn thảo văn bản (TEXT) - CKEditor</label>
                         <button type="button" class="btn btn-sm btn-outline-secondary" id="toggle_text_json_btn">Hiển thị JSON nâng cao</button>
                     </div>
-                    <div id="text_editor" style="height: 260px; background: #fff;"></div>
+                    <div id="ckeditor_container">
+                        <div id="ckeditor" style="min-height: 300px;"></div>
+                    </div>
                 </div>
 
                 <div class="mb-3" id="content_data_group">
@@ -379,10 +381,7 @@
   }
 
   // Events
-  if (typeSelect) {
-    typeSelect.addEventListener('change', toggleFields);
-    toggleFields();
-  }
+  // Note: toggleFields functionality is now handled by main.js
   if (btnSampleText) btnSampleText.addEventListener('click', setSampleText);
   if (btnSampleQuiz) btnSampleQuiz.addEventListener('click', setSampleQuiz);
   if (addQuestionBtn) addQuestionBtn.addEventListener('click', () => addQuestion());
@@ -409,7 +408,7 @@
     } else if (t === 'assignment') {
       // If editing assignment with existing JSON, show JSON button and keep builder empty (no reverse mapping for now)
     } else if (t === 'text') {
-      // load existing html into editor later after Quill init
+      // load existing html into editor later after CKEditor init
     }
   })();
 
@@ -422,8 +421,8 @@
     } else if (t === 'assignment' && textarea) {
       const obj = serializeAssignment();
       textarea.value = JSON.stringify(obj, null, 2);
-    } else if (t === 'text' && textarea && window.__quill) {
-      const html = window.__quill.root.innerHTML;
+    } else if (t === 'text' && textarea && window.__ckeditor) {
+      const html = window.__ckeditor.getData();
       const obj = { html: html };
       textarea.value = JSON.stringify(obj, null, 2);
     }
@@ -433,7 +432,7 @@
   if (textJsonToggleBtn) textJsonToggleBtn.addEventListener('click', () => {
     if (dataGroup.style.display === 'none') {
       // show JSON and sync from editor
-      const obj = { html: window.__quill ? window.__quill.root.innerHTML : '' };
+      const obj = { html: window.__ckeditor ? window.__ckeditor.getData() : '' };
       if (textarea) textarea.value = JSON.stringify(obj, null, 2);
       dataGroup.style.display = '';
       textJsonToggleBtn.textContent = 'Ẩn JSON nâng cao';
@@ -445,42 +444,8 @@
 })();
 </script>
 
-<!-- Quill (WYSIWYG) for TEXT -->
-<link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
-<script>
-(function() {
-  const typeSelect = document.getElementById('lesson_type');
-  const t = (typeSelect ? typeSelect.value : '').toLowerCase();
-  const editorEl = document.getElementById('text_editor');
-  if (!editorEl) return;
-  const quill = new Quill(editorEl, {
-    theme: 'snow',
-    modules: {
-      toolbar: [
-        [{ header: [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['link', 'blockquote', 'code-block'],
-        [{ 'align': [] }],
-        ['clean']
-      ]
-    }
-  });
-  window.__quill = quill;
-
-  // load existing TEXT html if any
-  try {
-    const textarea = document.querySelector('textarea[name="content_data"]');
-    if (textarea && textarea.value) {
-      const data = JSON.parse(textarea.value);
-      if (data && (data.html || data.text)) {
-        quill.root.innerHTML = data.html || data.text;
-      }
-    }
-  } catch (e) {}
-})();
-</script>
+<!-- CKEditor library (init is handled globally in static/js/main.js) -->
+<script src="https://cdn.ckeditor.com/ckeditor5/40.1.0/classic/ckeditor.js"></script>
 {% endblock %}
 
 

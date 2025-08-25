@@ -29,7 +29,7 @@
 
 <body>
     <!-- Spinner Start -->
-    <div id="spinner" class="show bg-white position-fixed translate-middle w-100 vh-100 top-50 start-50 d-flex align-items-center justify-content-center">
+    <div id="spinner" class="bg-white position-fixed translate-middle w-100 vh-100 top-50 start-50 d-flex align-items-center justify-content-center" style="display: none;">
         <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
             <span class="sr-only">Đang tải...</span>
         </div>
@@ -39,14 +39,7 @@
     <!-- Flash Messages Start -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            <div id="flash-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            </div>
+            <script id="flash-data" type="application/json">{{ messages|tojson }}</script>
         {% endif %}
     {% endwith %}
     <!-- Flash Messages End -->
@@ -102,5 +95,45 @@
 
     <!-- Template Javascript -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <!-- Initialize WOW.js and hide spinner -->
+    <script>
+        // Initialize WOW.js
+        if (typeof WOW !== 'undefined') {
+            new WOW().init();
+        }
+        
+        // Hide spinner when page is loaded
+        window.addEventListener('load', function() {
+            const spinner = document.getElementById('spinner');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+            // Render flash messages with Toastr after libs are ready
+            try {
+                var flashEl = document.getElementById('flash-data');
+                if (flashEl && typeof toastr !== 'undefined') {
+                    var msgs = JSON.parse(flashEl.textContent || '[]');
+                    msgs.forEach(function(entry){
+                        var cat = entry[0];
+                        var msg = entry[1];
+                        if (!msg) return;
+                        if (cat === 'success') toastr.success(msg);
+                        else if (cat === 'error' || cat === 'danger') toastr.error(msg);
+                        else if (cat === 'warning') toastr.warning(msg);
+                        else toastr.info(msg);
+                    });
+                }
+            } catch (e) { console.log('flash render error', e); }
+        });
+        
+        // Fallback: hide spinner after 3 seconds
+        setTimeout(function() {
+            const spinner = document.getElementById('spinner');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+        }, 3000);
+    </script>
 </body>
 </html>

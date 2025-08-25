@@ -1,5 +1,7 @@
 from app import app, db
-from app.models import User, Category, Course, UserRole, UserStatus, CourseStatus, CourseLevel
+from app.models import User, Category, Course, Lesson, Enrollment, Progress, UserRole, UserStatus, CourseStatus, CourseLevel, LessonType
+import random
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash
 
 def create_sample_data():
@@ -246,6 +248,119 @@ def create_sample_data():
             print(f" Error creating courses: {e}")
     else:
         print(f" Courses already exist ({len(existing_courses)} found)")
+
+    # Tạo lessons mẫu cho mỗi course nếu chưa có (nhiều bài)
+    for c in Course.query.all():
+        if not c.lessons:
+            total_lessons = 12
+            for i in range(1, total_lessons + 1):
+                if i == 1:
+                    ls = Lesson(
+                        title=f'Bài {i}: Giới thiệu',
+                        type=LessonType.TEXT,
+                        content_data={"html": f"<p>Giới thiệu tổng quan khóa {c.title}.</p>"},
+                        course_id=c.id,
+                        lesson_order=i,
+                        is_preview=True
+                    )
+                elif i % 3 == 1:
+                    ls = Lesson(
+                        title=f'Bài {i}: Lý thuyết',
+                        type=LessonType.TEXT,
+                        content_data={"html": f"<p>Nội dung lý thuyết bài {i}.</p>"},
+                        course_id=c.id,
+                        lesson_order=i
+                    )
+                elif i % 3 == 2:
+                    ls = Lesson(
+                        title=f'Bài {i}: Video minh họa',
+                        type=LessonType.VIDEO,
+                        content_url='https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                        course_id=c.id,
+                        lesson_order=i,
+                        duration_seconds=600
+                    )
+                else:
+                    ls = Lesson(
+                        title=f'Bài {i}: Quiz kiểm tra',
+                        type=LessonType.QUIZ,
+                        content_data={
+                            "title": f"Quiz bài {i}",
+                            "questions": [
+                                {"question": "2 + 2 = ?", "options": ["3", "4", "5"], "answer": 1},
+                                {"question": "Chữ viết tắt của CSS?", "options": ["Cascading Style Sheets", "Computer Style System"], "answer": 0}
+                            ]
+                        },
+                        course_id=c.id,
+                        lesson_order=i
+                    )
+                db.session.add(ls)
+    try:
+        db.session.commit()
+        print(" Lessons created successfully!")
+    except Exception as e:
+        db.session.rollback()
+        print(f" Error creating lessons: {e}")
+
+    # Tạo nhiều học viên và ghi danh vào khóa học nếu chưa có
+    existing_students = User.query.filter_by(role=UserRole.STUDENT).all()
+    if not existing_students:
+        students = []
+        for i in range(1, 21):
+            students.append(User(
+                full_name=f'Học Viên {i:02d}',
+                email=f'student{i:02d}@elearning.com',
+                password=generate_password_hash('student123'),
+                role=UserRole.STUDENT,
+                status=UserStatus.ACTIVE
+            ))
+        for s in students:
+            db.session.add(s)
+        try:
+            db.session.commit()
+            print(" Students created successfully!")
+        except Exception as e:
+            db.session.rollback()
+            print(f" Error creating students: {e}")
+    else:
+        print(f" Students already exist ({len(existing_students)} found)")
+
+    # Ghi danh mẫu: mỗi học viên vào ngẫu nhiên 2-4 khóa
+    students = User.query.filter_by(role=UserRole.STUDENT).all()
+    courses = Course.query.order_by(Course.id.asc()).all()
+    if students and courses:
+        for stu in students:
+            k = random.randint(2, min(4, len(courses)))
+            picked = random.sample(courses, k)
+            for crs in picked:
+                exists = Enrollment.query.filter_by(user_id=stu.id, course_id=crs.id).first()
+                if not exists:
+                    db.session.add(Enrollment(user_id=stu.id, course_id=crs.id))
+        try:
+            db.session.commit()
+            print(" Enrollments created successfully!")
+        except Exception as e:
+            db.session.rollback()
+            print(f" Error creating enrollments: {e}")
+
+    # Tạo progress ngẫu nhiên cho một số bài đã học
+    try:
+        students = User.query.filter_by(role=UserRole.STUDENT).all()
+        for stu in students:
+            for enr in Enrollment.query.filter_by(user_id=stu.id).all():
+                lessons = db.session.get(Course, enr.course_id).lessons
+                if not lessons:
+                    continue
+                completed_count = random.randint(0, min(5, len(lessons)))
+                for ls in lessons[:completed_count]:
+                    if not Progress.query.filter_by(user_id=stu.id, lesson_id=ls.id).first():
+                        db.session.add(Progress(user_id=stu.id, lesson_id=ls.id, is_completed=True, completed_at=datetime.now() - timedelta(days=random.randint(0, 30))))
+        db.session.commit()
+        print(" Progress records created successfully!")
+    except Exception as e:
+        db.session.rollback()
+        print(f" Error creating progress: {e}")
+    # Summary
     
     print(" Sample data creation completed!")
     print(" Summary:")

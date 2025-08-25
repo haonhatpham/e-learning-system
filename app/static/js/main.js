@@ -1,210 +1,261 @@
-// Spinner functionality
-window.addEventListener('load', function() {
-    const spinner = document.getElementById('spinner');
-    if (spinner) {
-        spinner.classList.remove('show');
-    }
-});
+// Main JavaScript file for e-learning system
 
-// WOW.js initialization
-if (typeof WOW !== 'undefined') {
-    new WOW().init();
-}
+// Global variables
+let currentLessonType = 'video';
+let ckEditorInstance = null;
 
-// nút lên đầu trang
-window.addEventListener('scroll', function() {
-    const backToTop = document.querySelector('.back-to-top');
-    if (backToTop) {
-        if (window.pageYOffset > 100) {
-            backToTop.style.display = 'block';
-        } else {
-            backToTop.style.display = 'none';
-        }
-    }
-});
-
-// Auto-hide alerts
+// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-hide Bootstrap alerts after 5 seconds
-    const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
-    alerts.forEach(function(alert) {
-        setTimeout(function() {
-            if (alert && alert.parentNode) {
-                alert.style.transition = 'opacity 0.5s ease-out';
-                alert.style.opacity = '0';
-                setTimeout(function() {
-                    if (alert && alert.parentNode) {
-                        alert.remove();
-                    }
-                }, 500);
-            }
-        }, 5000);
-    });
+    initializeLessonForm();
+    initializeCKEditor();
+    initializeTooltips();
+    initializeFormValidation();
 });
 
-// Simple Toastr functions
-function showSuccessToast(message, title = 'Thành công!') {
-    toastr.success(message, title);
+// Initialize lesson form functionality
+function initializeLessonForm() {
+    const lessonTypeSelect = document.getElementById('lesson_type');
+    if (lessonTypeSelect) {
+        lessonTypeSelect.addEventListener('change', handleLessonTypeChange);
+        handleLessonTypeChange(); // Initial call
+    }
 }
 
-function showErrorToast(message, title = 'Lỗi!') {
-    toastr.error(message, title);
-}
-
-function showWarningToast(message, title = 'Cảnh báo!') {
-    toastr.warning(message, title);
-}
-
-function showInfoToast(message, title = 'Thông tin!') {
-    toastr.info(message, title);
-}
-
-// Make functions globally available
-window.showToast = {
-    success: showSuccessToast,
-    error: showErrorToast,
-    warning: showWarningToast,
-    info: showInfoToast
-};
-
-// Make toast functions globally available for auth.js
-window.showErrorToast = showErrorToast;
-window.showSuccessToast = showSuccessToast;
-window.showWarningToast = showWarningToast;
-window.showInfoToast = showInfoToast;
-
-/*=============== XEM MẬT KHẨU ===============*/
-document.addEventListener('DOMContentLoaded', function() {
-    // Xử lý tất cả các trường mật khẩu
-    const passwordToggles = document.querySelectorAll('[id*="showPasswordToggle"]');
+// Handle lesson type change
+function handleLessonTypeChange() {
+    const lessonType = document.getElementById('lesson_type')?.value?.toLowerCase() || 'video';
+    currentLessonType = lessonType;
     
-    passwordToggles.forEach(function(toggle) {
-        const input = toggle.previousElementSibling;
-        const icon = toggle.querySelector('i');
-        
-        if (input && icon) {
-            toggle.addEventListener('click', function() {
-                if (input.type === 'password') {
-                    input.type = 'text';
-                    icon.className = 'bi bi-eye-slash';
+    // Hide all content groups
+    const contentGroups = [
+        'content_url_group',
+        'video_file_group',
+        'quiz_builder_group',
+        'assignment_builder_group',
+        'text_editor_group',
+        'content_data_group'
+    ];
+    
+    contentGroups.forEach(groupId => {
+        const group = document.getElementById(groupId);
+        if (group) {
+            group.style.display = 'none';
+        }
+    });
+    
+    // Show relevant groups based on type
+    switch (lessonType) {
+        case 'video':
+            showGroups(['content_url_group', 'video_file_group']);
+            break;
+        case 'text':
+            showGroups(['text_editor_group']);
+            break;
+        case 'quiz':
+            showGroups(['quiz_builder_group']);
+            break;
+        case 'assignment':
+            showGroups(['assignment_builder_group']);
+            break;
+        default:
+            showGroups(['content_url_group', 'video_file_group', 'quiz_builder_group', 'assignment_builder_group', 'text_editor_group', 'content_data_group']);
+    }
+}
+
+// Show specific groups
+function showGroups(groupIds) {
+    groupIds.forEach(groupId => {
+        const group = document.getElementById(groupId);
+        if (group) {
+            group.style.display = 'block';
+        }
+    });
+}
+
+// Initialize CKEditor
+function initializeCKEditor() {
+    const editorElement = document.getElementById('ckeditor');
+    if (!editorElement) return;
+    
+    // Check if CKEditor is already loaded
+    if (typeof ClassicEditor === 'undefined') {
+        console.warn('CKEditor not loaded yet, retrying in 1 second...');
+        setTimeout(initializeCKEditor, 1000);
+        return;
+    }
+    
+    ClassicEditor
+        .create(editorElement, {
+            toolbar: {
+                items: [
+                    'heading',
+                    '|',
+                    'bold',
+                    'italic',
+                    'underline',
+                    'strikethrough',
+                    '|',
+                    'fontSize',
+                    'fontFamily',
+                    'fontColor',
+                    'fontBackgroundColor',
+                    '|',
+                    'alignment',
+                    '|',
+                    'numberedList',
+                    'bulletedList',
+                    '|',
+                    'indent',
+                    'outdent',
+                    '|',
+                    'link',
+                    'blockQuote',
+                    'insertTable',
+                    'mediaEmbed',
+                    '|',
+                    'undo',
+                    'redo',
+                    '|',
+                    'code',
+                    'codeBlock',
+                    '|',
+                    'removeFormat'
+                ]
+            },
+            language: 'vi',
+            table: {
+                contentToolbar: [
+                    'tableColumn',
+                    'tableRow',
+                    'mergeTableCells',
+                    'tableCellProperties',
+                    'tableProperties'
+                ]
+            },
+            mediaEmbed: {
+                previewsInData: true
+            },
+            link: {
+                addTargetToExternalLinks: true,
+                defaultProtocol: 'https://'
+            },
+            placeholder: 'Nhập nội dung bài học ở đây...'
+        })
+        .then(editor => {
+            ckEditorInstance = editor;
+            window.__ckeditor = editor;
+            
+            // Load existing content if available
+            loadExistingContent(editor);
+            
+            // Auto-save content changes
+            editor.model.document.on('change:data', () => {
+                autoSaveContent(editor);
+            });
+            
+            // Add custom event listeners
+            editor.ui.focusTracker.on('change:isFocused', (evt, data, isFocused) => {
+                if (isFocused) {
+                    editor.element.classList.add('ck-focused');
                 } else {
-                    input.type = 'password';
-                    icon.className = 'bi bi-eye';
-                }
-            });
-        }
-    });
-});
-
-/*=============== XỬ LÝ FLASH MESSAGES ===============*/
-document.addEventListener('DOMContentLoaded', function() {
-    // Đợi một chút để đảm bảo Toastr đã load
-    setTimeout(function() {
-        // Lấy tất cả flash messages từ Flask
-        const flashMessages = document.querySelectorAll('#flash-container .alert');
-        
-        if (flashMessages.length > 0) {
-            console.log('Found flash messages:', flashMessages.length);
-            
-            flashMessages.forEach(function(message, index) {
-                const messageText = message.textContent.trim();
-                const messageType = getMessageType(message);
-                
-                console.log(`Message ${index}:`, messageText, 'Type:', messageType);
-                
-                // Ẩn message gốc ngay lập tức
-                if (message && message.parentNode) {
-                    message.style.display = 'none';
-                }
-                
-                // Hiển thị toast tương ứng
-                if (messageType === 'success') {
-                    showSuccessToast(messageText);
-                } else if (messageType === 'error' || messageType === 'danger') {
-                    showErrorToast(messageText);
-                } else if (messageType === 'warning') {
-                    showWarningToast(messageText);
-                } else if (messageType === 'info') {
-                    showInfoToast(messageText);
-                }
-            });
-        } else {
-            console.log('No flash messages found');
-        }
-    }, 100);
-});
-
-// Hàm xác định loại message
-function getMessageType(messageElement) {
-    const classes = messageElement.className;
-    
-    if (classes.includes('alert-success') || classes.includes('success')) {
-        return 'success';
-    } else if (classes.includes('alert-danger') || classes.includes('error') || classes.includes('danger')) {
-        return 'error';
-    } else if (classes.includes('alert-warning') || classes.includes('warning')) {
-        return 'warning';
-    } else if (classes.includes('alert-info') || classes.includes('info')) {
-        return 'info';
-    }
-    
-    return 'info'; // Mặc định
-}
-
-/*=============== CHỨC NĂNG TÌM KIẾM ===============*/
-document.addEventListener('DOMContentLoaded', function() {
-    // Xử lý form tìm kiếm
-    const searchForms = document.querySelectorAll('form[action="/search"]');
-    
-    searchForms.forEach(function(form) {
-        const searchInput = form.querySelector('input[name="q"]');
-        const searchButton = form.querySelector('button[type="submit"]');
-        
-        if (searchInput && searchButton) {
-            // Tự động focus vào ô tìm kiếm khi trang load
-            if (form.closest('.hero-section')) {
-                searchInput.focus();
-            }
-            
-            // Xử lý khi nhập text
-            searchInput.addEventListener('input', function() {
-                if (this.value.trim().length > 0) {
-                    searchButton.disabled = false;
-                    searchButton.classList.remove('btn-secondary');
-                    searchButton.classList.add('btn-primary');
-                } else {
-                    searchButton.disabled = true;
-                    searchButton.classList.remove('btn-primary');
-                    searchButton.classList.add('btn-secondary');
+                    editor.element.classList.remove('ck-focused');
                 }
             });
             
-            // Xử lý khi submit form
-            form.addEventListener('submit', function(e) {
-                if (!searchInput.value.trim()) {
-                    e.preventDefault();
-                    searchInput.focus();
-                    return false;
-                }
-                
-                // Thêm loading state
-                searchButton.innerHTML = '<span class="loading"></span> Đang tìm...';
-                searchButton.disabled = true;
-            });
-        }
-    });
-    
-    // Xử lý tìm kiếm nhanh với Enter
-    const heroSearchInput = document.querySelector('.hero-section input[name="q"]');
-    if (heroSearchInput) {
-        heroSearchInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const form = this.closest('form');
-                if (form) {
-                    form.submit();
-                }
-            }
+            console.log('CKEditor initialized successfully');
+        })
+        .catch(error => {
+            console.error('CKEditor initialization failed:', error);
+            showNotification('Không thể khởi tạo trình soạn thảo. Vui lòng tải lại trang.', 'error');
         });
+}
+
+// Load existing content into editor
+function loadExistingContent(editor) {
+    try {
+        const textarea = document.querySelector('textarea[name="content_data"]');
+        if (textarea && textarea.value) {
+            const data = JSON.parse(textarea.value);
+            if (data && (data.html || data.text)) {
+                editor.setData(data.html || data.text);
+                console.log('Existing content loaded into CKEditor');
+            }
+        }
+    } catch (error) {
+        console.log('No existing content to load or invalid format');
     }
-});
+}
+
+// Auto-save content changes
+function autoSaveContent(editor) {
+    if (currentLessonType === 'text') {
+        const html = editor.getData();
+        const textarea = document.querySelector('textarea[name="content_data"]');
+        if (textarea) {
+            const obj = { html: html };
+            textarea.value = JSON.stringify(obj, null, 2);
+        }
+    }
+}
+
+// Initialize tooltips
+function initializeTooltips() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+}
+
+// Initialize form validation
+function initializeFormValidation() {
+    const forms = document.querySelectorAll('.needs-validation');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    });
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Add to body
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 5000);
+}
+
+// Utility function to get lesson type
+function getCurrentLessonType() {
+    return currentLessonType;
+}
+
+// Utility function to get CKEditor instance
+function getCKEditorInstance() {
+    return ckEditorInstance;
+}
+
+// Export functions for global use
+window.eLearningSystem = {
+    getCurrentLessonType,
+    getCKEditorInstance,
+    showNotification,
+    handleLessonTypeChange
+};

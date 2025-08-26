@@ -87,12 +87,18 @@
     <!-- Nút hành động -->
     <div class="text-center mb-4">
       {% if current_user.is_authenticated and user_is_owner %}
-        <a href="{{ url_for('instructor_lessons', course_id=course.id) }}" class="btn btn-outline-primary btn-enroll">Quản lý bài học</a>
+        <a href="{{ url_for('instructor_lessons', course_id=course.id) }}" class="btn btn-outline-primary btn-enroll me-2">Quản lý bài học</a>
       {% elif current_user.is_authenticated and user_enrolled %}
         {% set lessons_sorted = course.lessons|sort(attribute='lesson_order') %}
         {% if lessons_sorted and lessons_sorted[0] %}
-          <a href="{{ url_for('view_lesson', course_id=course.id, lesson_id=lessons_sorted[0].id) }}" class="btn btn-primary btn-enroll">VÀO HỌC</a>
+          <a href="{{ url_for('view_lesson', course_id=course.id, lesson_id=lessons_sorted[0].id) }}" class="btn btn-primary btn-enroll me-2">VÀO HỌC</a>
         {% endif %}
+        <a href="{{ url_for('course_chat', course_id=course.id) }}" class="btn btn-outline-success btn-enroll me-2">
+          <i class="fa fa-comments me-1"></i>Chat với giảng viên
+        </a>
+        <a href="{{ url_for('course_progress', course_id=course.id) }}" class="btn btn-info btn-enroll">
+          <i class="fa fa-chart-line me-1"></i>Tiến độ
+        </a>
       {% elif not current_user.is_authenticated %}
         <a href="{{ url_for('login_user_route', next=url_for('course_detail', course_id=course.id)) }}" class="btn btn-success btn-enroll">ĐĂNG KÝ NGAY!</a>
       {% else %}

@@ -1,0 +1,89 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}Thảo luận - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h3 class="mb-0">Thảo luận khóa học</h3>
+    <a class="btn btn-secondary" href="{{ url_for('course_detail', course_id=course.id) }}">Quay lại khóa học</a>
+  </div>
+
+  <form class="row g-2 mb-4" method="get" action="{{ url_for('course_forum', course_id=course.id) }}">
+    <div class="col-auto">
+      <label class="col-form-label">Lọc theo bài:</label>
+    </div>
+    <div class="col-auto">
+      <select class="form-select" name="lesson_id" onchange="this.form.submit()">
+        <option value="">Tất cả</option>
+        {% for l in lessons %}
+          <option value="{{ l.id }}" {% if selected_lesson_id and selected_lesson_id == l.id %}selected{% endif %}>
+            #{{ l.lesson_order }} - {{ l.title }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="post">
+        <div class="mb-2">
+          <select class="form-select" name="lesson_id">
+            <option value="">Gắn với bài (tuỳ chọn)</option>
+            {% for l in lessons %}
+              <option value="{{ l.id }}" {% if selected_lesson_id and selected_lesson_id == l.id %}selected{% endif %}>
+                #{{ l.lesson_order }} - {{ l.title }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-2">
+          <textarea name="content" class="form-control" rows="3" placeholder="Đặt câu hỏi hoặc chia sẻ..." required></textarea>
+        </div>
+        <button class="btn btn-primary" type="submit">Đăng</button>
+      </form>
+    </div>
+  </div>
+
+  {% macro render_node(node) %}
+    <div class="mb-3">
+      <div class="d-flex align-items-start gap-2">
+        <img src="{{ node.user.avatar_url or 'https://via.placeholder.com/36' }}" alt="avatar" class="rounded-circle" width="36" height="36">
+        <div>
+          <div class="fw-semibold">{{ node.user.full_name }} <small class="text-muted">• {{ node.created_at.strftime('%d/%m/%Y %H:%M') }}</small></div>
+          <div class="mt-1">{{ node.text }}</div>
+          {% if node.lesson_id %}
+            <div class="mt-1"><span class="badge bg-info text-dark">Bài #{{ lessons|selectattr('id', 'equalto', node.lesson_id)|first.lesson_order if lessons else '' }}</span></div>
+          {% endif %}
+          <form class="mt-2" method="post">
+            <input type="hidden" name="parent_id" value="{{ node.id }}">
+            <input type="hidden" name="lesson_id" value="{{ node.lesson_id or '' }}">
+            <div class="input-group input-group-sm">
+              <input type="text" name="content" class="form-control" placeholder="Trả lời...">
+              <button class="btn btn-outline-primary" type="submit">Gửi</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% if node.replies %}
+        <div class="ms-5 mt-2">
+          {% for child in node.replies %}
+            {{ render_node(child) }}
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  {% endmacro %}
+
+  <div>
+    {% if comments_tree %}
+      {% for n in comments_tree %}
+        {{ render_node(n) }}
+      {% endfor %}
+    {% else %}
+      <div class="text-muted">Chưa có thảo luận nào. Hãy là người đầu tiên đặt câu hỏi!</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

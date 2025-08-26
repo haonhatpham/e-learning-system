@@ -1,0 +1,204 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}Tiến độ học tập - {{ course.title }}{% endblock %}
+
+{% block content %}
+<!-- Header Start -->
+<div class="container-fluid bg-primary py-5 mb-5 page-header">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10 text-center">
+                <h1 class="display-3 text-white animated slideInDown">Tiến độ học tập</h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb justify-content-center">
+                        <li class="breadcrumb-item"><a class="text-white" href="{{ url_for('index') }}">Trang chủ</a></li>
+                        <li class="breadcrumb-item"><a class="text-white" href="{{ url_for('my_courses') }}">Khóa học của tôi</a></li>
+                        <li class="breadcrumb-item text-white active" aria-current="page">{{ course.title }}</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Header End -->
+
+<!-- Progress Start -->
+<div class="container-xxl py-5">
+    <div class="container">
+        <!-- Course Info -->
+        <div class="row mb-5">
+            <div class="col-lg-8">
+                <h2 class="mb-3">{{ course.title }}</h2>
+                <p class="text-muted mb-3">{{ course.description }}</p>
+                <div class="d-flex align-items-center mb-3">
+                    <i class="fa fa-user-tie text-primary me-2"></i>
+                    <span class="me-4">{{ course.instructor.full_name }}</span>
+                    <i class="fa fa-clock text-primary me-2"></i>
+                    <span>{{ total_lessons }} bài học</span>
+                </div>
+            </div>
+            <div class="col-lg-4 text-center">
+                <div class="progress-circle mb-3">
+                    <div class="progress-circle-inner">
+                        <span class="progress-percentage">{{ "%.1f"|format(progress_percentage) }}%</span>
+                    </div>
+                </div>
+                <p class="text-muted">Hoàn thành {{ completed_lessons }}/{{ total_lessons }} bài học</p>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Tiến độ tổng quan</h5>
+                        <div class="progress mb-3" style="height: 25px;">
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ progress_percentage }}%" 
+                                 aria-valuenow="{{ progress_percentage }}" 
+                                 aria-valuemin="0" aria-valuemax="100">
+                                {{ "%.1f"|format(progress_percentage) }}%
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between text-muted">
+                            <small>Bắt đầu: {{ enrollment.enroll_date.strftime('%d/%m/%Y') }}</small>
+                            <small>Hoàn thành: {{ completed_lessons }}/{{ total_lessons }}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lessons Progress -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Chi tiết bài học</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th width="5%">#</th>
+                                        <th width="40%">Tên bài học</th>
+                                        <th width="15%">Loại</th>
+                                        <th width="15%">Trạng thái</th>
+                                        <th width="15%">Ngày hoàn thành</th>
+                                        <th width="10%">Hành động</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in lesson_progress %}
+                                    <tr>
+                                        <td>{{ item.lesson.lesson_order }}</td>
+                                        <td>
+                                            <strong>{{ item.lesson.title }}</strong>
+                                            {% if item.lesson.is_preview %}
+                                                <span class="badge bg-warning ms-2">Xem trước</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if item.lesson.type.value == 'TEXT' %}
+                                                <span class="badge bg-info">Lý thuyết</span>
+                                            {% elif item.lesson.type.value == 'VIDEO' %}
+                                                <span class="badge bg-primary">Video</span>
+                                            {% elif item.lesson.type.value == 'QUIZ' %}
+                                                <span class="badge bg-warning">Quiz</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if item.is_completed %}
+                                                <span class="badge bg-success">
+                                                    <i class="fa fa-check me-1"></i>Hoàn thành
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">
+                                                    <i class="fa fa-clock me-1"></i>Chưa học
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if item.completed_at %}
+                                                {{ item.completed_at.strftime('%d/%m/%Y') }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('view_lesson', course_id=course.id, lesson_id=item.lesson.id) }}" 
+                                               class="btn btn-sm btn-primary">
+                                                {% if item.is_completed %}
+                                                    <i class="fa fa-eye me-1"></i>Xem lại
+                                                {% else %}
+                                                    <i class="fa fa-play me-1"></i>Học
+                                                {% endif %}
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row mt-4">
+            <div class="col-12 text-center">
+                <a href="{{ url_for('course_detail', course_id=course.id) }}" class="btn btn-outline-primary me-2">
+                    <i class="fa fa-arrow-left me-1"></i>Quay lại khóa học
+                </a>
+                <a href="{{ url_for('my_courses') }}" class="btn btn-outline-secondary">
+                    <i class="fa fa-list me-1"></i>Danh sách khóa học
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Progress End -->
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.progress-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: conic-gradient(#28a745 0deg {{ progress_percentage * 3.6 }}deg, #e9ecef {{ progress_percentage * 3.6 }}deg 360deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.progress-circle-inner {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.progress-percentage {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #333;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+</style>
+{% endblock %}

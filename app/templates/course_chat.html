@@ -1,0 +1,219 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}Chat - {{ course.title }}{% endblock %}
+
+{% block content %}
+{% set is_student = (current_user.role.value == 'student') %}
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h3 class="mb-0">Phòng chat khóa học</h3>
+    <a class="btn btn-secondary" href="{{ url_for('course_detail', course_id=course.id) }}">Quay lại khóa học</a>
+  </div>
+
+  <div class="row g-3">
+    <aside class="col-lg-4 {% if is_student %}d-none{% endif %}">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-bold">Cuộc trò chuyện</span>
+           <div class="d-flex gap-2">
+            {% if current_user.role.value == 'student' %}
+              <button id="btnStartWithInstructor" class="btn btn-sm btn-outline-primary">Nhắn với giảng viên</button>
+            {% endif %}
+            {% if current_user.role.value == 'instructor' and enrolled_students %}
+              <select id="startWithStudent" class="form-select form-select-sm" style="width:auto;">
+                <option value="">Chọn học viên...</option>
+                {% for s in enrolled_students %}
+                  <option value="{{ s.id }}">{{ s.full_name }}</option>
+                {% endfor %}
+              </select>
+            {% endif %}
+          </div>
+        </div>
+        <div id="threadList" class="list-group list-group-flush" style="max-height: 520px; overflow-y: auto;"></div>
+      </div>
+    </aside>
+
+    <section class="{% if is_student %}col-lg-12{% else %}col-lg-8{% endif %}">
+      <div class="card h-100">
+        <div id="threadHeader" class="card-header fw-bold">Chọn một cuộc trò chuyện</div>
+        <div id="messages" class="card-body" style="height: 420px; overflow-y: auto; background:#fafafa;"></div>
+        <div class="card-footer">
+          <form id="chatForm" class="d-flex gap-2">
+            <input id="msgInput" class="form-control" type="text" placeholder="Nhập tin nhắn..." autocomplete="off" required disabled>
+            <button id="btnSend" class="btn btn-primary" type="submit" disabled>Gửi</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+  import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+  import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, setDoc, doc, getDocs, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+  // Config được truyền từ server
+  const firebaseConfig = {{ firebase_config | tojson }};
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const courseId = {{ course.id }};
+  const currentUser = {
+    id: {{ current_user.id }},
+    name: {{ (current_user.full_name or current_user.username) | tojson }},
+    role: {{ current_user.role.value | tojson }}
+  };
+  const instructor = { id: {{ course.instructor.id }}, name: {{ course.instructor.full_name | tojson }} };
+
+  const threadListEl = document.getElementById('threadList');
+  const threadHeaderEl = document.getElementById('threadHeader');
+  const messagesEl = document.getElementById('messages');
+  const formEl = document.getElementById('chatForm');
+  const inputEl = document.getElementById('msgInput');
+  const btnSendEl = document.getElementById('btnSend');
+  const btnStartWithInstructor = document.getElementById('btnStartWithInstructor');
+  const startWithStudentSel = document.getElementById('startWithStudent');
+
+  let activeThreadId = null;
+
+  function renderMessage(m) {
+    const isSelf = Number(m.user_id) === Number(currentUser.id);
+    const row = document.createElement('div');
+    row.className = `mb-2 d-flex ${isSelf ? 'justify-content-end' : 'justify-content-start'}`;
+
+    const bubble = document.createElement('div');
+    bubble.style.maxWidth = '70%';
+    bubble.style.borderRadius = '12px';
+    bubble.style.padding = '8px 12px';
+    bubble.style.background = isSelf ? '#d1e7dd' : '#e9ecef';
+    bubble.style.border = '1px solid rgba(0,0,0,.05)';
+
+    const text = document.createElement('div');
+    text.textContent = m.text;
+    const meta = document.createElement('div');
+    meta.className = 'small text-muted mt-1';
+    const dt = m.created_at && m.created_at.seconds ? new Date(m.created_at.seconds * 1000) : new Date();
+    meta.textContent = `${m.user_name} • ${dt.toLocaleString()}`;
+
+    bubble.appendChild(text);
+    bubble.appendChild(meta);
+    row.appendChild(bubble);
+    messagesEl.appendChild(row);
+  }
+
+  function scrollToBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function threadItem(thread) {
+    const a = document.createElement('a');
+    a.href = '#';
+    a.className = 'list-group-item list-group-item-action';
+    const other = (thread.participants || []).find(id => id !== currentUser.id);
+    const otherName = thread.participantNames && thread.participantNames[String(other)] || 'Trò chuyện';
+    a.textContent = `${otherName} — ${thread.lastMessage || ''}`;
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      openThread(thread.id, otherName);
+    });
+    return a;
+  }
+
+  async function openThread(threadId, title) {
+    activeThreadId = threadId;
+    threadHeaderEl.textContent = title || 'Cuộc trò chuyện';
+    inputEl.disabled = false; btnSendEl.disabled = false;
+    messagesEl.innerHTML = '';
+    const col = collection(db, 'chats', String(courseId), 'threads', String(threadId), 'messages');
+    const q = query(col, orderBy('created_at', 'asc'));
+    onSnapshot(q, (snap) => {
+      messagesEl.innerHTML = '';
+      snap.forEach(doc => renderMessage(doc.data()));
+      scrollToBottom();
+    });
+  }
+
+  async function loadThreads() {
+    // lấy tất cả threads có currentUser trong participants
+    const col = collection(db, 'chats', String(courseId), 'threads');
+    const qy = query(col, where('participants', 'array-contains', currentUser.id));
+    onSnapshot(qy, (snap) => {
+      threadListEl.innerHTML = '';
+      const items = [];
+      snap.forEach(d => items.push({ id: d.id, ...d.data() }));
+      // sắp theo updated_at
+      items.sort((a,b) => (b.updated_at?.seconds||0) - (a.updated_at?.seconds||0));
+      items.forEach(t => threadListEl.appendChild(threadItem(t)));
+    });
+  }
+
+  async function getOrCreateDMWith(user) {
+    const col = collection(db, 'chats', String(courseId), 'threads');
+    const qy = query(col, where('participants', 'array-contains', currentUser.id));
+    const rs = await getDocs(qy);
+    let found = null;
+    rs.forEach(d => {
+      const data = d.data();
+      const ps = data.participants || [];
+      if (ps.length === 2 && ps.includes(user.id) && ps.includes(currentUser.id)) {
+        found = { id: d.id, ...data };
+      }
+    });
+    if (found) return found;
+    // tạo mới
+    const tid = String(Date.now());
+    await setDoc(doc(db, 'chats', String(courseId), 'threads', tid), {
+      participants: [currentUser.id, user.id],
+      participantNames: { [String(currentUser.id)]: currentUser.name, [String(user.id)]: user.name },
+      type: 'dm',
+      lastMessage: '',
+      updated_at: serverTimestamp()
+    });
+    return { id: tid, participants: [currentUser.id, user.id], participantNames: { [String(currentUser.id)]: currentUser.name, [String(user.id)]: user.name } };
+  }
+
+  // Đăng nhập ẩn danh cho client
+  signInAnonymously(auth).catch(()=>{});
+
+  // Lắng nghe realtime
+  onAuthStateChanged(auth, async () => {
+    await loadThreads();
+    if (currentUser.role === 'student') {
+      const th = await getOrCreateDMWith(instructor);
+      openThread(th.id, instructor.name);
+    }
+  });
+
+  // Gửi tin
+  formEl.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = inputEl.value.trim();
+    if (!text || !activeThreadId) return;
+    const col = collection(db, 'chats', String(courseId), 'threads', String(activeThreadId), 'messages');
+    await addDoc(col, { user_id: currentUser.id, user_name: currentUser.name, role: currentUser.role, text, created_at: serverTimestamp() });
+    // cập nhật lastMessage
+    await updateDoc(doc(db, 'chats', String(courseId), 'threads', String(activeThreadId)), { lastMessage: text, updated_at: serverTimestamp() });
+    inputEl.value = '';
+  });
+
+  if (btnStartWithInstructor) {
+    btnStartWithInstructor.addEventListener('click', async () => {
+      const th = await getOrCreateDMWith(instructor);
+      openThread(th.id, instructor.name);
+    });
+  }
+
+  if (startWithStudentSel) {
+    startWithStudentSel.addEventListener('change', async (e) => {
+      const sid = Number(e.target.value);
+      if (!sid) return;
+      const selName = e.target.options[e.target.selectedIndex].textContent;
+      const th = await getOrCreateDMWith({ id: sid, name: selName });
+      openThread(th.id, selName);
+    });
+  }
+</script>
+{% endblock %}
+

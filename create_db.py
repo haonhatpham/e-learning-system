@@ -1,5 +1,5 @@
 from app import app, db
-from app.models import User, Category, Course, Lesson, Enrollment, Progress, UserRole, UserStatus, CourseStatus, CourseLevel, LessonType
+from app.models import User, Category, Course, Lesson, Enrollment, Progress, Payment, PaymentMethod, PaymentStatus, UserRole, UserStatus, CourseStatus, CourseLevel, LessonType
 import random
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash
@@ -258,7 +258,19 @@ def create_sample_data():
                     ls = Lesson(
                         title=f'Bài {i}: Giới thiệu',
                         type=LessonType.TEXT,
-                        content_data={"html": f"<p>Giới thiệu tổng quan khóa {c.title}.</p>"},
+                        content_data={
+                            "html": (
+                                f"<h2>Giới thiệu khóa {c.title}</h2>"
+                                f"<p>Trong bài mở đầu này, bạn sẽ nắm tổng quan về mục tiêu học tập, cách thức học và tiêu chí đánh giá. Hãy đọc kỹ để có lộ trình học hiệu quả.</p>"
+                                f"<h3>Bạn sẽ học được gì?</h3>"
+                                f"<ul>"
+                                f"<li>Nắm kiến thức cốt lõi và khái niệm nền tảng</li>"
+                                f"<li>Thực hành qua ví dụ ngắn gọn, dễ hiểu</li>"
+                                f"<li>Áp dụng vào mini project cuối khóa</li>"
+                                f"</ul>"
+                                f"<blockquote>Gợi ý: Chuẩn bị môi trường làm việc trước khi bắt đầu để tránh gián đoạn.</blockquote>"
+                            )
+                        },
                         course_id=c.id,
                         lesson_order=i,
                         is_preview=True
@@ -267,7 +279,21 @@ def create_sample_data():
                     ls = Lesson(
                         title=f'Bài {i}: Lý thuyết',
                         type=LessonType.TEXT,
-                        content_data={"html": f"<p>Nội dung lý thuyết bài {i}.</p>"},
+                        content_data={
+                            "html": (
+                                f"<h2>Lý thuyết bài {i}</h2>"
+                                f"<p>Bài này trình bày các khái niệm quan trọng và best practices. Hãy đọc chậm rãi và ghi chú lại các điểm cần thiết.</p>"
+                                f"<h3>Khái niệm chính</h3>"
+                                f"<ul>"
+                                f"<li>Khái niệm A: định nghĩa, ví dụ trực quan</li>"
+                                f"<li>Khái niệm B: khi nào nên sử dụng</li>"
+                                f"<li>Khái niệm C: các lưu ý thường gặp</li>"
+                                f"</ul>"
+                                f"<h3>Ví dụ minh họa</h3>"
+                                f"<pre><code>// Ví dụ đơn giản minh họa ý chính\nfunction demo() {{\n  console.log('Hello from lesson {i}!');\n}}\n</code></pre>"
+                                f"<p>Sau khi đọc xong, hãy kéo xuống cuối trang để đánh dấu hoàn thành bài học.</p>"
+                            )
+                        },
                         course_id=c.id,
                         lesson_order=i
                     )
@@ -275,7 +301,7 @@ def create_sample_data():
                     ls = Lesson(
                         title=f'Bài {i}: Video minh họa',
                         type=LessonType.VIDEO,
-                        content_url='https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                        content_url='https://vimeo.com/76979871',
                         course_id=c.id,
                         lesson_order=i,
                         duration_seconds=600
@@ -307,12 +333,15 @@ def create_sample_data():
     if not existing_students:
         students = []
         for i in range(1, 21):
+            avatar = f"https://images.unsplash.com/photo-15064{1000+i}-00dcc994a43e?w=150&h=150&fit=crop&crop=face"
             students.append(User(
+                username=f'student{i:02d}',
                 full_name=f'Học Viên {i:02d}',
                 email=f'student{i:02d}@elearning.com',
                 password=generate_password_hash('student123'),
                 role=UserRole.STUDENT,
-                status=UserStatus.ACTIVE
+                status=UserStatus.ACTIVE,
+                avatar_url=avatar
             ))
         for s in students:
             db.session.add(s)
@@ -325,7 +354,7 @@ def create_sample_data():
     else:
         print(f" Students already exist ({len(existing_students)} found)")
 
-    # Ghi danh mẫu: mỗi học viên vào ngẫu nhiên 2-4 khóa
+    # Ghi danh mẫu: mỗi học viên vào ngẫu nhiên 2-4 khóa + tạo payment nếu khóa có phí
     students = User.query.filter_by(role=UserRole.STUDENT).all()
     courses = Course.query.order_by(Course.id.asc()).all()
     if students and courses:
@@ -335,7 +364,24 @@ def create_sample_data():
             for crs in picked:
                 exists = Enrollment.query.filter_by(user_id=stu.id, course_id=crs.id).first()
                 if not exists:
-                    db.session.add(Enrollment(user_id=stu.id, course_id=crs.id))
+                    enr = Enrollment(user_id=stu.id, course_id=crs.id)
+                    db.session.add(enr)
+                    db.session.flush()  # lấy enr.id
+                    try:
+                        price_val = float(crs.price or 0)
+                    except Exception:
+                        price_val = 0
+                    if price_val > 0:
+                        method = random.choice([PaymentMethod.MOMO, PaymentMethod.VNPAY])
+                        pay = Payment(
+                            enrollment_id=enr.id,
+                            amount=crs.price,
+                            payment_method=method,
+                            transaction_id=f"SEED-{stu.id}-{crs.id}",
+                            status=PaymentStatus.COMPLETED,
+                            payment_date=datetime.now()
+                        )
+                        db.session.add(pay)
         try:
             db.session.commit()
             print(" Enrollments created successfully!")

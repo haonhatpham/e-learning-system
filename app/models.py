@@ -38,7 +38,6 @@ class LessonType(enum.Enum):
     VIDEO = 'video'
     QUIZ = 'quiz'
     TEXT = 'text'
-    ASSIGNMENT = 'assignment'
 
 
 class PaymentMethod(enum.Enum):
@@ -172,6 +171,8 @@ class Progress(BaseModel):
     # Unique constraint
     __table_args__ = (db.UniqueConstraint('user_id', 'lesson_id', name='unique_user_lesson'),)
 
+
+ 
 
 # Review Model - Kế thừa từ BaseModel
 class Review(BaseModel):

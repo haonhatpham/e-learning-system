@@ -5,7 +5,7 @@ from app.dao import load_categories, load_featured_courses, search_courses, get_
 from flask_login import login_user, logout_user, current_user, login_required
 from app.utils import send_welcome_email, send_registration_confirmation
 from app.models import UserRole, UserStatus, Course, CourseStatus, CourseLevel, Lesson, LessonType, Enrollment, Payment, \
-    PaymentMethod, PaymentStatus, Progress, User
+    PaymentMethod, PaymentStatus, Progress, User, ForumComment
 from app.permissions import require_instructor, require_admin, require_student
 from app import admin
 from datetime import datetime
@@ -87,6 +87,50 @@ def progress():
                            student_name=current_user.full_name,
                            courses=courses_progress)
 
+# Tiến độ chi tiết của một khóa học
+@app.route("/course/<int:course_id>/progress")
+@login_required
+def course_progress(course_id):
+    course = Course.query.get_or_404(course_id)
+    
+    # Kiểm tra user đã đăng ký khóa học chưa
+    enrollment = Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first()
+    if not enrollment:
+        flash('Bạn chưa đăng ký khóa học này!', 'error')
+        return redirect(url_for('course_detail', course_id=course_id))
+    
+    # Lấy danh sách bài học đã sắp xếp theo thứ tự
+    lessons = Lesson.query.filter_by(course_id=course_id).order_by(Lesson.lesson_order).all()
+    
+    # Lấy tiến độ của user cho từng bài học
+    lesson_progress = []
+    total_lessons = len(lessons)
+    completed_lessons = 0
+    
+    for lesson in lessons:
+        progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson.id).first()
+        is_completed = progress.is_completed if progress else False
+        
+        if is_completed:
+            completed_lessons += 1
+            
+        lesson_progress.append({
+            'lesson': lesson,
+            'is_completed': is_completed,
+            'completed_at': progress.completed_at if progress else None
+        })
+    
+    # Tính phần trăm hoàn thành
+    progress_percentage = (completed_lessons / total_lessons * 100) if total_lessons > 0 else 0
+    
+    return render_template('course_progress.html',
+                         course=course,
+                         enrollment=enrollment,
+                         lesson_progress=lesson_progress,
+                         total_lessons=total_lessons,
+                         completed_lessons=completed_lessons,
+                         progress_percentage=progress_percentage)
+
 
 def can_view_lesson(lesson: Lesson, course: Course) -> bool:
     if lesson.is_preview:
@@ -115,7 +159,7 @@ def view_lesson(course_id, lesson_id):
 
     if lesson.type == LessonType.VIDEO:
         embed_url = dao.to_embeddable_video_url(lesson.content_url)
-    elif lesson.type == LessonType.TEXT and lesson.content_data:
+    elif (lesson.type == LessonType.TEXT) and lesson.content_data:
         try:
             if isinstance(lesson.content_data, dict):
                 text_content = lesson.content_data.get('html', '')
@@ -136,8 +180,18 @@ def view_lesson(course_id, lesson_id):
             questions = []
 
     user_progress = None
+    assignment_submission = None
+    all_lessons_progress = {}
     if current_user.is_authenticated:
         user_progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson.id).first()
+        
+        # Lấy progress của tất cả bài học trong khóa học
+        all_progress = Progress.query.join(Lesson).filter(
+            Progress.user_id == current_user.id,
+            Lesson.course_id == course.id
+        ).all()
+        for p in all_progress:
+            all_lessons_progress[p.lesson_id] = p
 
     return render_template('lesson_view.html',
                            course=course,
@@ -145,7 +199,11 @@ def view_lesson(course_id, lesson_id):
                            embed_url=embed_url,
                            text_content=text_content,
                            questions=questions,
-                           user_progress=user_progress)
+                           user_progress=user_progress,
+                           assignment_submission=assignment_submission,
+                           all_lessons_progress=all_lessons_progress)
+
+
 
 
 @app.route('/course/<int:course_id>/lesson/<int:lesson_id>/submit-quiz', methods=['POST'])
@@ -183,6 +241,35 @@ def submit_quiz(course_id, lesson_id):
     db.session.commit()
 
     flash(f'Bạn đã nộp quiz. Điểm: {correct}/{total}', 'success')
+    return redirect(url_for('view_lesson', course_id=course.id, lesson_id=lesson.id))
+
+
+@app.route('/course/<int:course_id>/lesson/<int:lesson_id>/mark-complete', methods=['POST'])
+@login_required
+def mark_lesson_complete(course_id, lesson_id):
+    course = Course.query.get_or_404(course_id)
+    lesson = Lesson.query.filter_by(id=lesson_id, course_id=course.id).first_or_404()
+    
+    if not can_view_lesson(lesson, course):
+        flash('Bạn không có quyền đánh dấu hoàn thành bài học này.', 'error')
+        return redirect(url_for('course_detail', course_id=course.id))
+
+    # Chỉ cho phép đánh dấu hoàn thành bài TEXT và VIDEO
+    if lesson.type == LessonType.QUIZ:
+        flash('Bài quiz được đánh dấu hoàn thành khi nộp bài.', 'warning')
+        return redirect(url_for('view_lesson', course_id=course.id, lesson_id=lesson.id))
+
+    # Tạo hoặc cập nhật progress
+    progress = Progress.query.filter_by(user_id=current_user.id, lesson_id=lesson.id).first()
+    if not progress:
+        progress = Progress(user_id=current_user.id, lesson_id=lesson.id)
+        db.session.add(progress)
+    
+    progress.is_completed = True
+    progress.completed_at = datetime.now()
+    db.session.commit()
+
+    flash('Đã đánh dấu hoàn thành bài học!', 'success')
     return redirect(url_for('view_lesson', course_id=course.id, lesson_id=lesson.id))
 
 
@@ -287,6 +374,122 @@ def profile():
 def my_courses():
     return render_template('my_courses.html')
 
+
+# Hộp thư chat cho giảng viên: chọn khóa học để vào phòng chat
+@app.route('/instructor/chats')
+@login_required
+def instructor_chats():
+    if current_user.role != UserRole.INSTRUCTOR:
+        return redirect(url_for('index'))
+    # các khóa do giảng viên tạo
+    courses = Course.query.filter_by(instructor_id=current_user.id).all()
+    return render_template('instructor/chats.html', courses=courses)
+
+
+# Thảo luận khóa học
+@app.route('/course/<int:course_id>/forum', methods=['GET', 'POST'])
+@login_required
+def course_forum(course_id):
+    course = Course.query.get_or_404(course_id)
+
+    # Tạo chủ đề mới
+    if request.method == 'POST':
+        content_text = request.form.get('content', '').strip()
+        lesson_id = request.form.get('lesson_id', type=int)
+        parent_id = request.form.get('parent_id', type=int)
+
+        if not content_text:
+            flash('Vui lòng nhập nội dung.', 'warning')
+            return redirect(url_for('course_forum', course_id=course.id, lesson_id=lesson_id or None))
+
+        # Lưu theo định dạng JSON đơn giản để có thể filter theo bài học
+        payload = { 'type': 'discussion', 'text': content_text }
+        if lesson_id:
+            payload['lesson_id'] = lesson_id
+
+        db.session.add(ForumComment(
+            course_id=course.id,
+            user_id=current_user.id,
+            content=json.dumps(payload, ensure_ascii=False),
+            parent_comment_id=parent_id
+        ))
+        db.session.commit()
+        flash('Đã đăng bình luận.', 'success')
+        return redirect(url_for('course_forum', course_id=course.id, lesson_id=lesson_id or None))
+
+    # Filter theo bài học nếu có
+    filter_lesson_id = request.args.get('lesson_id', type=int)
+
+    comments = ForumComment.query.filter_by(course_id=course.id).order_by(ForumComment.created_at.asc()).all()
+    parsed_comments = []
+    for c in comments:
+        try:
+            data = json.loads(c.content)
+            text = data.get('text') if isinstance(data, dict) else c.content
+            lesson_tag = data.get('lesson_id') if isinstance(data, dict) else None
+        except Exception:
+            text = c.content
+            lesson_tag = None
+        if filter_lesson_id and lesson_tag != filter_lesson_id:
+            continue
+        parsed_comments.append({
+            'id': c.id,
+            'user': c.user,
+            'text': text,
+            'lesson_id': lesson_tag,
+            'created_at': c.created_at,
+            'parent_id': c.parent_comment_id
+        })
+
+    # Xây cây bình luận
+    by_parent = {}
+    for pc in parsed_comments:
+        by_parent.setdefault(pc['parent_id'], []).append(pc)
+
+    def build_tree(parent_id=None):
+        nodes = by_parent.get(parent_id, [])
+        for n in nodes:
+            n['replies'] = build_tree(n['id'])
+        return nodes
+
+    tree = build_tree(None)
+
+    lessons_sorted = course.lessons.order_by(Lesson.lesson_order).all() if hasattr(course.lessons, 'order_by') else sorted(course.lessons, key=lambda l: l.lesson_order)
+
+    return render_template('course_forum.html', course=course, comments_tree=tree, lessons=lessons_sorted, selected_lesson_id=filter_lesson_id)
+
+
+@app.route('/course/<int:course_id>/chat')
+@login_required
+def course_chat(course_id):
+    course = Course.query.get_or_404(course_id)
+    lesson_id = request.args.get('lesson_id', type=int)
+
+    # Chỉ cho phép học viên đã ghi danh, giảng viên chủ khóa hoặc admin
+    is_owner = current_user.is_authenticated and course.instructor_id == current_user.id
+    is_admin = current_user.is_authenticated and current_user.role == UserRole.ADMIN
+    is_enrolled = Enrollment.query.filter_by(user_id=current_user.id, course_id=course.id).first() is not None
+    if not (is_owner or is_admin or is_enrolled):
+        flash('Bạn cần đăng ký khóa học để sử dụng chat.', 'warning')
+        return redirect(url_for('course_detail', course_id=course.id))
+
+    # Danh sách học viên đã ghi danh (để giảng viên chủ động bắt đầu chat)
+    enrolled_students = []
+    if current_user.role == UserRole.INSTRUCTOR and current_user.id == course.instructor_id:
+        enrolled_students = (
+            db.session.query(User)
+            .join(Enrollment, Enrollment.user_id == User.id)
+            .filter(Enrollment.course_id == course.id, User.role == UserRole.STUDENT)
+            .all()
+        )
+
+    firebase_config = {
+        "apiKey": "AIzaSyBs0wj3BDAFu6eeosagQfnZM4p25C3xUCM",
+        "authDomain": "ecourse-d6de4.firebaseapp.com",
+        "projectId": "ecourse-d6de4",
+        "appId": "1:459535957510:web:5bf6f28e1d91daa625cd87"
+    }
+    return render_template('course_chat.html', course=course, lesson_id=lesson_id, firebase_config=firebase_config, enrolled_students=enrolled_students)
 
 @app.route('/checkout/<int:course_id>')
 @login_required

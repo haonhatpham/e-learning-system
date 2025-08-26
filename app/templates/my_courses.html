@@ -46,10 +46,11 @@
                                     <a href="{{ url_for('course_detail', course_id=enrollment.course.id) }}" class="flex-shrink-0 btn btn-sm btn-primary px-3 border-end" style="border-radius: 30px 0 0 30px;">Xem khóa học</a>
                                     {% set lessons_sorted = enrollment.course.lessons|sort(attribute='lesson_order') %}
                                     {% if lessons_sorted and lessons_sorted[0] %}
-                                        <a href="{{ url_for('view_lesson', course_id=enrollment.course.id, lesson_id=lessons_sorted[0].id) }}" class="flex-shrink-0 btn btn-sm btn-primary px-3" style="border-radius: 0 30px 30px 0;">Tiếp tục học</a>
+                                        <a href="{{ url_for('view_lesson', course_id=enrollment.course.id, lesson_id=lessons_sorted[0].id) }}" class="flex-shrink-0 btn btn-sm btn-primary px-3 border-end" style="border-radius: 0;">Tiếp tục học</a>
                                     {% else %}
-                                        <a href="{{ url_for('course_detail', course_id=enrollment.course.id) }}" class="flex-shrink-0 btn btn-sm btn-secondary px-3 disabled" style="border-radius: 0 30px 30px 0;" tabindex="-1" aria-disabled="true">Chưa có bài</a>
+                                        <a href="{{ url_for('course_detail', course_id=enrollment.course.id) }}" class="flex-shrink-0 btn btn-sm btn-secondary px-3 border-end disabled" style="border-radius: 0;" tabindex="-1" aria-disabled="true">Chưa có bài</a>
                                     {% endif %}
+                                    <a href="{{ url_for('course_progress', course_id=enrollment.course.id) }}" class="flex-shrink-0 btn btn-sm btn-info px-3" style="border-radius: 0 30px 30px 0;">Tiến độ</a>
                                 </div>
                             </div>
                             <div class="text-center p-4 pb-0">

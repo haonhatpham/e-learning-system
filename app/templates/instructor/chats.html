@@ -1,0 +1,21 @@
+{% extends 'layout/base.html' %}
+
+{% block title %}Hộp thư chat - Giảng viên{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h3 class="mb-3">Hộp thư chat</h3>
+  {% if courses %}
+  <div class="list-group">
+    {% for c in courses %}
+      <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="{{ url_for('course_chat', course_id=c.id) }}">
+        <span>{{ c.title }}</span>
+        <span class="badge bg-secondary">ID: {{ c.id }}</span>
+      </a>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="alert alert-light">Bạn chưa có khóa học nào.</div>
+  {% endif %}
+</div>
+{% endblock %}

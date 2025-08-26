@@ -1,11 +1,11 @@
-from flask import render_template, request, redirect, url_for, flash, jsonify
+from flask import render_template, request, redirect, url_for, flash, jsonify, session
 from app import app, dao, db
 from app import login
-from app.dao import load_categories, load_featured_courses, search_courses
+from app.dao import load_categories, load_featured_courses, search_courses, get_user_progress
 from flask_login import login_user, logout_user, current_user, login_required
 from app.utils import send_welcome_email, send_registration_confirmation
 from app.models import UserRole, UserStatus, Course, CourseStatus, CourseLevel, Lesson, LessonType, Enrollment, Payment, \
-    PaymentMethod, PaymentStatus, Progress
+    PaymentMethod, PaymentStatus, Progress, User
 from app.permissions import require_instructor, require_admin, require_student
 from app import admin
 from datetime import datetime
@@ -64,6 +64,28 @@ def course_detail(course_id):
         user_is_admin = (current_user.role == UserRole.ADMIN)
     return render_template("course_detail.html", course=course, prev_url=prev_url,
                            user_enrolled=user_enrolled, user_is_owner=user_is_owner, user_is_admin=user_is_admin)
+
+#Theo dõi tiến độ học tập
+@app.route("/progress")
+@login_required
+def progress():
+    enrollments = Enrollment.query.filter_by(user_id=current_user.id).all()
+
+    courses_progress = []
+    for e in enrollments:
+        course = Course.query.get(e.course_id)
+        percent = get_user_progress(current_user.id, course.id)
+
+        courses_progress.append({
+            "id": course.id,
+            "name": course.title,             # ✅ dùng title thay cho name
+            "image": course.cover_image,      # ✅ dùng cover_image thay cho image_url
+            "progress": percent
+        })
+
+    return render_template("progress.html",
+                           student_name=current_user.full_name,
+                           courses=courses_progress)
 
 
 def can_view_lesson(lesson: Lesson, course: Course) -> bool:

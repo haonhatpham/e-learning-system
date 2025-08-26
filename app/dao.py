@@ -211,6 +211,32 @@ def auth_user(username, password, role=None):
 
     return user
 
+#Hàm lấy tiến độ học tập 
+def get_user_progress(user_id, course_id):
+    """
+    Tính tiến độ học tập (theo % số bài học đã hoàn thành trong một khóa học)
+    """
+    # Tổng số bài học trong khóa
+    total_lessons = Lesson.query.filter_by(course_id=course_id).count()
+
+    # Số bài đã hoàn thành
+    completed_lessons = (
+        db.session.query(Progress)
+        .join(Lesson, Progress.lesson_id == Lesson.id)
+        .filter(
+            Progress.user_id == user_id,
+            Lesson.course_id == course_id,
+            Progress.is_completed == True   # ✅ dùng cột thật
+        )
+        .count()
+    )
+
+    if total_lessons == 0:
+        return 0
+
+    return int((completed_lessons / total_lessons) * 100)
+
+
 
 def auth_user_by_username(username, password):
     user = User.query.filter_by(username=username).first()

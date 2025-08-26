@@ -1,0 +1,48 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <a href="{{ url_for('index') }}" class="btn btn-outline-dark mb-3">Quay lại</a>
+
+    <div class="text-center mb-4">
+        <h3 class="fw-bold">THEO DÕI TIẾN ĐỘ HỌC TẬP</h3>
+    </div>
+
+    <p><strong>Xin chào, {{ student_name }}!</strong></p>
+    <p>Các khóa học bạn đang tham gia</p>
+
+    {% for course in courses %}
+    <div class="card mb-3 p-3">
+        <div class="d-flex justify-content-between align-items-center">
+            
+            <div class="d-flex align-items-center gap-3">
+                <div class="course-image bg-light d-flex justify-content-center align-items-center"
+                     style="width:120px; height:80px; border:1px solid #ddd;">
+                    {% if course.image %}
+                        <img src="{{ course.image }}" alt="{{ course.title }}" style="max-width:100%; max-height:100%;">
+                    {% else %}
+                        Hình ảnh
+                    {% endif %}
+                </div>
+                <div>
+                    <p><strong>Tên khóa học:</strong> {{ course.title }}</p>
+                    <div class="progress" style="width:200px;">
+                        <div class="progress-bar bg-dark" role="progressbar" 
+                             style="width: {{ course.progress }}%;" 
+                             aria-valuenow="{{ course.progress }}" 
+                             aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                    <p><strong>Tiến độ:</strong> {{ course.progress }}%</p>
+                </div>
+            </div>
+
+            <a href="{{ url_for('course_detail', course_id=course.id) }}" 
+               class="btn btn-outline-dark">Xem chi tiết</a>
+        </div>
+    </div>
+    {% endfor %}
+
+</div>
+{% endblock %}

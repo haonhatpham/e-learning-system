@@ -552,3 +552,78 @@ def get_quiz_questions(lesson_id: int):
     if lesson.type != LessonType.QUIZ:
         return None  #
     return lesson.content_data.get("questions", [])
+
+
+# ================= INSTRUCTOR STATS =================
+def get_instructor_course_stats(instructor_id: int, month: int = None, year: int = None):
+    """Trả về thống kê khóa học của một giảng viên theo tháng/năm.
+
+    Kết quả gồm:
+    - stats: danh sách tuple (stt, course_id, title, num_students, revenue)
+    - labels: danh sách tiêu đề khóa học (title)
+    - student_counts: danh sách số học viên (num_students)
+    - revenues: danh sách doanh thu (float)
+    - total_revenue: tổng doanh thu (float)
+    """
+
+    query = (
+        db.session.query(
+            Course.id,
+            Course.title,
+            func.count(Enrollment.id).label("num_students"),
+            func.coalesce(func.sum(Payment.amount), 0).label("revenue")
+        )
+        .outerjoin(Enrollment, Enrollment.course_id == Course.id)
+        .outerjoin(Payment, Payment.enrollment_id == Enrollment.id)
+        .filter(Course.instructor_id == instructor_id, Payment.status == PaymentStatus.COMPLETED)
+    )
+
+    if month:
+        query = query.filter(func.extract("month", Payment.payment_date) == month)
+    if year:
+        query = query.filter(func.extract("year", Payment.payment_date) == year)
+
+    query = query.group_by(Course.id, Course.title)
+    raw = query.all()
+
+    stats = [(idx + 1, c.id, c.title, c.num_students, float(c.revenue)) for idx, c in enumerate(raw)]
+    labels = [c.title for c in raw]
+    student_counts = [c.num_students for c in raw]
+    revenues = [float(c.revenue) for c in raw]
+    total_revenue = float(sum(revenues))
+
+    return {
+        'stats': stats,
+        'labels': labels,
+        'student_counts': student_counts,
+        'revenues': revenues,
+        'total_revenue': total_revenue
+    }
+
+
+def get_admin_instructor_stats(month: int = None, year: int = None):
+    """Thống kê tổng hợp theo giảng viên cho trang admin.
+
+    Trả về list các bản ghi (User.id, User.full_name, num_students, revenue).
+    """
+    query = (
+        db.session.query(
+            User.id,
+            User.full_name,
+            func.count(Enrollment.id).label("num_students"),
+            func.coalesce(func.sum(Payment.amount), 0).label("revenue")
+        )
+        .join(Course, Course.instructor_id == User.id)
+        .outerjoin(Enrollment, Enrollment.course_id == Course.id)
+        .outerjoin(Payment, Payment.enrollment_id == Enrollment.id)
+        .filter(User.role == UserRole.INSTRUCTOR, Payment.status == PaymentStatus.COMPLETED)
+        .group_by(User.id, User.full_name)
+        .order_by(User.id)
+    )
+
+    if month:
+        query = query.filter(func.extract("month", Payment.payment_date) == month)
+    if year:
+        query = query.filter(func.extract("year", Payment.payment_date) == year)
+
+    return query.all()

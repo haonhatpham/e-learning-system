@@ -25,6 +25,7 @@
                         {% if current_user.role.value == 'instructor' and current_user.status.value == 'active' %}
                             <a href="/instructor/courses" class="dropdown-item">Giảng dạy</a>
                             <a href="/instructor/chats" class="dropdown-item">Hộp thư chat</a>
+                             <a href="/instructor/stats" class="dropdown-item">Thống kê giảng viên</a>
                         {% endif %}
                         {% if current_user.role.value == 'admin' %}
                             <a href="/admin" class="dropdown-item">Quản trị</a>

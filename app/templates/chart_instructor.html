@@ -1,0 +1,112 @@
+{% extends 'layout/base.html' %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<h1 class="text-center text-danger">THỐNG KÊ - BÁO CÁO</h1>
+
+<form method="get" action="{{ url_for('instructor_stats') }}" class="mb-3">
+    <label for="month">Tháng:</label>
+    <select name="month" id="month">
+        <option value="">Tất cả</option>
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m== month %} selected {% endif %}>{{ m }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="year">Năm:</label>
+    <input type="number" name="year" id="year" value="{{ year }}" min="2020" max="{{ 2025 }}">
+    <button type="submit" class="btn btn-primary">Xem thống kê</button>
+</form>
+
+<div class="row">
+    <!-- Bảng doanh thu theo bài học -->
+    <div class="col-md-5 col-12">
+        <table class="table table-bordered">
+            <tr>
+                <th>Id</th>
+                <th>Tên Bài Học</th>
+                <th>Doanh thu</th>
+            </tr>
+            {% for s in stats %}
+            <tr>
+                <td>{{ s[0] }}</td>
+                <td>{{ s[2] }}</td>
+                <td>{{ '{:,.0f}'.format(s[4]) }} đ</td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <p>Tổng doanh thu:
+        {% set ns = namespace(total=0) %}
+        {% for s in stats %}
+            {% set ns.total = ns.total + s[4] %}
+        {% endfor %}
+        <strong>{{ '{:,.0f}'.format(ns.total) }} đ</strong>
+        </p>
+
+        <button id="doanhThu" type="button" class="btn btn-primary" onclick="handleExport(this)">Export</button>
+    </div>
+
+    <!-- Chart doanh thu -->
+    <div class="col-md-7 col-12">
+        <canvas id="myChart"></canvas>
+    </div>
+</div>
+
+<script lang="javascript" src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<script>
+function draw(ctx, data, labels, labelName) {
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: labelName,
+                data: data,
+                borderWidth: 1,
+                backgroundColor: ['red','green','blue','gold','brown','orange']
+            }]
+        },
+        options: { scales: { y: { beginAtZero: true } } }
+    });
+}
+
+// Chuẩn bị dữ liệu chart
+let data = [], labels = [];
+{% for s in stats %}
+data.push({{ s[4] }});  // doanh thu
+labels.push('{{ s[2] }}');  // tên bài học
+{% endfor %}
+
+window.onload = function() {
+    draw(document.getElementById('myChart'), data, labels, "Doanh thu");
+}
+
+// Export Excel
+function handleExport(element) {
+    const monthElement = document.getElementById("month");
+    const month = monthElement.options[monthElement.selectedIndex].value || "Tất cả";
+    const year = document.getElementById("year").value || "Tất cả";
+
+    let headers = [["STT", "Tên Bài Học", "Doanh thu"]];
+    let filename = `Thong_ke_doanh_thu_${month}_${year}.xlsx`;
+    let data = [];
+
+    {% for s in stats %}
+    data.push({
+        STT: {{ s[0] }},
+        "Tên Bài Học": "{{ s[2] }}",
+        "Doanh thu": parseFloat("{{ s[4] }}")
+    });
+    {% endfor %}
+
+    const worksheet = XLSX.utils.json_to_sheet(data, { header: Object.keys(data[0] || {}) });
+    XLSX.utils.sheet_add_aoa(worksheet, headers, { origin: "A1" });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Thống kê");
+    XLSX.writeFile(workbook, filename);
+}
+</script>
+{% endblock %}

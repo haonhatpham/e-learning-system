@@ -17,7 +17,7 @@ import hashlib
 import json
 import requests
 from bs4 import BeautifulSoup
-
+from sqlalchemy import func
 
 @app.route("/")
 def index():
@@ -1169,6 +1169,37 @@ def instructor_delete_lesson(lesson_id):
     db.session.commit()
     flash('Đã xóa bài học.', 'success')
     return redirect(url_for('instructor_lessons', course_id=course.id))
+
+
+
+
+@app.route("/instructor/stats")
+@login_required
+def instructor_stats():
+    if current_user.role != UserRole.INSTRUCTOR:
+        return "Chỉ giảng viên mới xem được thống kê", 403
+
+    month = request.args.get("month", type=int)
+    year = request.args.get("year", default=datetime.now().year, type=int)
+
+    # Lấy thống kê từ DAO
+    stats_data = dao.get_instructor_course_stats(current_user.id, month=month, year=year)
+    stats = stats_data['stats']
+    labels = stats_data['labels']
+    student_counts = stats_data['student_counts']
+    revenues = stats_data['revenues']
+    total_revenue = stats_data['total_revenue']
+
+    return render_template(
+        "chart_instructor.html",
+        labels=labels,
+        student_counts=student_counts,
+        revenues=revenues,
+        stats=stats,
+        total_revenue=total_revenue,
+        month=month,
+        year=year
+    )
 
 
 if __name__ == "__main__":

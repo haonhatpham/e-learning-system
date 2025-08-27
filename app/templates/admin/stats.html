@@ -1,119 +1,81 @@
 {% extends 'admin/master.html' %}
 
 {% block body %}
-<div class="container-fluid">
-    <h1 class="text-primary mb-4">THỐNG KÊ CHI TIẾT</h1>
-    
-    <div class="row">
-        <!-- Thống kê người dùng theo role -->
-        <div class="col-md-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Người dùng theo vai trò</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Vai trò</th>
-                                <th>Số lượng</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for role, count in stats.users_by_role.items() %}
-                            <tr>
-                                <td>{{ role.value if role.value else 'Không xác định' }}</td>
-                                <td>{{ count }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+<h1 class="text-center text-danger">THỐNG KÊ - DOANH THU THEO GIẢNG VIÊN</h1>
 
-        <!-- Thống kê khóa học theo trạng thái -->
-        <div class="col-md-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Khóa học theo trạng thái</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Trạng thái</th>
-                                <th>Số lượng</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for status, count in stats.courses_by_status.items() %}
-                            <tr>
-                                <td>{{ status.value if status.value else 'Không xác định' }}</td>
-                                <td>{{ count }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+<form method="get" class="mb-3">
+    <label for="month">Tháng:</label>
+    <select name="month" id="month">
+        <option value="">Tất cả</option>
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == month %} selected {% endif %}>{{ m }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="year">Năm:</label>
+    <input type="number" name="year" id="year" value="{{ year }}" min="2020" max="{{ 2025 }}">
+    <button type="submit" class="btn btn-primary">Xem thống kê</button>
+
+    </form>
+
+<div class="row">
+    <div class="col-md-5 col-12">
+        <table class="table table-bordered">
+            <tr>
+                <th>Id</th>
+                <th>Giảng viên</th>
+                <th>Doanh thu</th>
+            </tr>
+            {% set ns = namespace(total=0) %}
+            {% for s in stats %}
+            <tr>
+                <td>{{ s.id }}</td>
+                <td>{{ s.full_name }}</td>
+                <td>{{ '{:,.0f}'.format(s.revenue) }} đ</td>
+            </tr>
+            {% set ns.total = ns.total + (s.revenue or 0) %}
+            {% endfor %}
+        </table>
+
+        <p>Tổng doanh thu: <strong>{{ '{:,.0f}'.format(ns.total) }} đ</strong></p>
+    </div>
+    <div class="col-md-7 col-12">
+        <canvas id="instructorChart" data-labels='{{ labels|tojson }}' data-data='{{ revenues|tojson }}'></canvas>
+    </div>
     </div>
 
-    <div class="row">
-        <!-- Thống kê khóa học theo danh mục -->
-        <div class="col-md-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Khóa học theo danh mục</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Danh mục</th>
-                                <th>Số lượng</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for category, count in stats.courses_by_category.items() %}
-                            <tr>
-                                <td>{{ category }}</td>
-                                <td>{{ count }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+function draw(ctx, seriesData, xLabels, labelName) {
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: xLabels,
+            datasets: [{
+                label: labelName,
+                data: seriesData,
+                borderWidth: 1,
+                backgroundColor: ['#ff6384','#36a2eb','#ffce56','#4bc0c0','#9966ff']
+            }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+}
 
-        <!-- Thống kê đăng ký theo tháng -->
-        <div class="col-md-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5>Đăng ký theo tháng</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Tháng</th>
-                                <th>Số lượng</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for month, count in stats.monthly_registrations.items() %}
-                            <tr>
-                                <td>{{ month }}</td>
-                                <td>{{ count }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+const chartLabels = {{ labels|tojson }};
+const chartRevenues = {{ revenues|tojson }};
+let revenueData = [];
+let revenueLabels = [];
+for (let i = 0; i < chartLabels.length; i++) {
+    revenueData.push(chartRevenues[i] || 0);
+    revenueLabels.push(chartLabels[i]);
+}
+
+window.onload = function() {
+    const ctx = document.getElementById('instructorChart');
+    draw(ctx, revenueData, revenueLabels, 'Doanh thu');
+}
+</script>
 {% endblock %}
+
+

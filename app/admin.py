@@ -5,7 +5,7 @@ from flask_login import current_user, logout_user, login_user
 from flask import redirect, flash, request, url_for
 from datetime import datetime
 from app import app, db, dao
-
+from sqlalchemy import func
 
 class MyAdminIndexView(AdminIndexView):
     @expose('/')
@@ -72,14 +72,18 @@ class LogoutView(AuthenticatedView):
 class StatsView(AuthenticatedView):
     @expose('/')
     def index(self):
-        # Thống kê chi tiết
-        stats = {
-            'users_by_role': dao.count_users_by_role(),
-            'courses_by_status': dao.count_courses_by_status(),
-            'courses_by_category': dao.count_courses_by_category(),
-            'monthly_registrations': dao.monthly_registrations()
-        }
-        return self.render('admin/stats.html', stats=stats)
+        # Lọc tháng/năm từ query
+        month = request.args.get('month', type=int)
+        year = request.args.get('year', type=int)
+
+        # Thống kê theo giảng viên cho admin
+        instructor_stats = dao.get_admin_instructor_stats(month=month, year=year)
+        labels = [s.full_name for s in instructor_stats]
+        revenues = [float(s.revenue) for s in instructor_stats]
+        students = [int(s.num_students) for s in instructor_stats]
+
+        return self.render('admin/stats.html', stats=instructor_stats, month=month, year=year,
+                           labels=labels, revenues=revenues, students=students)
 
 
 class InstructorApprovalView(AuthenticatedView):

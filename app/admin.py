@@ -19,6 +19,12 @@ class MyAdminIndexView(AdminIndexView):
         }
         return self.render('admin/index.html', stats=stats)
 
+    def is_accessible(self):
+        return current_user.is_authenticated and current_user.role == UserRole.ADMIN
+
+    def inaccessible_callback(self, name, **kwargs):
+        return redirect(url_for('index'))
+
 
 admin = Admin(app=app, name='E-Learning Admin', template_mode='bootstrap4', index_view=MyAdminIndexView())
 
@@ -59,7 +65,11 @@ class UserView(AdminView):
 
 class AuthenticatedView(BaseView):
     def is_accessible(self):
-        return current_user.is_authenticated
+        # Chỉ cho phép admin truy cập các view trong khu vực admin
+        return current_user.is_authenticated and current_user.role == UserRole.ADMIN
+
+    def inaccessible_callback(self, name, **kwargs):
+        return redirect(url_for('index'))
 
 
 class LogoutView(AuthenticatedView):
@@ -82,8 +92,29 @@ class StatsView(AuthenticatedView):
         revenues = [float(s.revenue) for s in instructor_stats]
         students = [int(s.num_students) for s in instructor_stats]
 
-        return self.render('admin/stats.html', stats=instructor_stats, month=month, year=year,
-                           labels=labels, revenues=revenues, students=students)
+        # KPI tổng quan
+        total_revenue = float(sum(revenues))
+        total_instructors = len(instructor_stats)
+        total_students = int(sum(students))
+
+        # Doanh thu theo tháng trong năm
+        selected_year = year or datetime.now().year
+        monthly = dao.get_admin_monthly_revenue(selected_year)
+
+        return self.render(
+            'admin/stats.html',
+            stats=instructor_stats,
+            month=month,
+            year=selected_year,
+            labels=labels,
+            revenues=revenues,
+            students=students,
+            total_revenue=total_revenue,
+            total_instructors=total_instructors,
+            total_students=total_students,
+            months=monthly['months'],
+            monthly_revenues=monthly['revenues']
+        )
 
 
 class InstructorApprovalView(AuthenticatedView):

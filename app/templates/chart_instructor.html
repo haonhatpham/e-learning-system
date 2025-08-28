@@ -6,6 +6,40 @@
 
 <h1 class="text-center text-danger">THỐNG KÊ - BÁO CÁO</h1>
 
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted">Tổng doanh thu</div>
+                        <div class="h4 mb-0">{{ '{:,.0f}'.format(total_revenue) }} đ</div>
+                    </div>
+                    <div class="text-primary">
+                        <i class="bi bi-cash-coin" style="font-size: 1.8rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Tổng học viên</div>
+                <div class="h4 mb-0">{{ total_students }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Số khóa học</div>
+                <div class="h4 mb-0">{{ total_courses }}</div>
+            </div>
+        </div>
+    </div>
+ </div>
+
 <form method="get" action="{{ url_for('instructor_stats') }}" class="mb-3">
     <label for="month">Tháng:</label>
     <select name="month" id="month">
@@ -17,10 +51,18 @@
 
     <label for="year">Năm:</label>
     <input type="number" name="year" id="year" value="{{ year }}" min="2020" max="{{ 2025 }}">
+
+    <label for="course_id">Khóa học:</label>
+    <select name="course_id" id="course_id">
+        <option value="">Tất cả</option>
+        {% for c in instructor_courses %}
+        <option value="{{ c.id }}" {% if course_id and c.id==course_id %} selected {% endif %}>{{ c.title }}</option>
+        {% endfor %}
+    </select>
     <button type="submit" class="btn btn-primary">Xem thống kê</button>
 </form>
 
-<div class="row">
+<div class="row g-3">
     <!-- Bảng doanh thu theo bài học -->
     <div class="col-md-5 col-12">
         <table class="table table-bordered">
@@ -49,16 +91,46 @@
         <button id="doanhThu" type="button" class="btn btn-primary" onclick="handleExport(this)">Export</button>
     </div>
 
-    <!-- Chart doanh thu -->
+    <!-- Vùng biểu đồ bên phải -->
     <div class="col-md-7 col-12">
-        <canvas id="myChart"></canvas>
+        {% if not course_id %}
+        <div class="card shadow-sm mb-3" style="height: 320px;">
+            <div class="card-header">Doanh thu theo khóa học</div>
+            <div class="card-body" style="height: 260px;">
+                <canvas id="chartRevenueByCourse"></canvas>
+            </div>
+        </div>
+        <div class="card shadow-sm" style="height: 320px;">
+            <div class="card-header">Học viên theo khóa học</div>
+            <div class="card-body" style="height: 260px;">
+                <canvas id="chartStudentsByCourse"></canvas>
+            </div>
+        </div>
+        {% endif %}
+        {% if course_id %}
+        <div class="card shadow-sm" style="height: 660px;">
+            <div class="card-header">Xu hướng theo tháng ({{ year }})</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6" style="height: 280px;">
+                        <canvas id="chartRevenueMonthly"></canvas>
+                    </div>
+                    <div class="col-12 col-md-6" style="height: 280px;">
+                        <canvas id="chartStudentsMonthly"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
 <script lang="javascript" src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 <script>
-function draw(ctx, data, labels, labelName) {
-    new Chart(ctx, {
+const fmtVND = new Intl.NumberFormat('vi-VN');
+
+function drawBar(ctx, data, labels, labelName, color) {
+    return new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -66,22 +138,74 @@ function draw(ctx, data, labels, labelName) {
                 label: labelName,
                 data: data,
                 borderWidth: 1,
-                backgroundColor: ['red','green','blue','gold','brown','orange']
+                backgroundColor: color || 'rgba(54, 162, 235, 0.5)',
+                borderColor: color ? undefined : 'rgba(54, 162, 235, 1)'
             }]
         },
-        options: { scales: { y: { beginAtZero: true } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { 
+                y: { beginAtZero: true, ticks: { callback: (v)=> fmtVND.format(v) } },
+                x: { ticks: { autoSkip: true, maxRotation: 0 } }
+            },
+            plugins: { legend: { display: true, position: 'top' }, tooltip: { callbacks: { label: (ctx)=> `${ctx.dataset.label}: ${fmtVND.format(ctx.parsed.y)}` } } }
+        }
+    });
+}
+
+function drawLine(ctx, data, labels, labelName) {
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: labelName,
+                data: data,
+                borderWidth: 2,
+                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                fill: true,
+                tension: 0.25
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, ticks: { callback: (v)=> fmtVND.format(v) } } },
+            plugins: { legend: { display: true, position: 'top' } }
+        }
     });
 }
 
 // Chuẩn bị dữ liệu chart
-let data = [], labels = [];
+let revenuesByCourse = [], labelsByCourse = [], studentsByCourse = [];
 {% for s in stats %}
-data.push({{ s[4] }});  // doanh thu
-labels.push('{{ s[2] }}');  // tên bài học
+revenuesByCourse.push({{ s[4] }});
+labelsByCourse.push('{{ s[2] }}');
+studentsByCourse.push({{ s[3] }});
 {% endfor %}
 
+// Monthly series
+const months = {{ months|tojson }};
+const monthlyRevenues = {{ monthly_revenues|tojson }};
+const monthlyStudents = {{ monthly_students|tojson }};
+
 window.onload = function() {
-    draw(document.getElementById('myChart'), data, labels, "Doanh thu");
+    if (document.getElementById('chartRevenueByCourse')) {
+        drawBar(document.getElementById('chartRevenueByCourse'), revenuesByCourse, labelsByCourse, "Doanh thu (đ)");
+    }
+    if (document.getElementById('chartStudentsByCourse')) {
+        drawBar(document.getElementById('chartStudentsByCourse'), studentsByCourse, labelsByCourse, "Học viên (người)", 'rgba(255, 159, 64, 0.5)');
+    }
+    // Vùng xu hướng theo tháng (khi có hoặc không lọc khóa học)
+    if (document.getElementById('chartRevenueMonthly')) {
+        drawLine(document.getElementById('chartRevenueMonthly'), monthlyRevenues, months, 'Doanh thu theo tháng');
+    }
+    if (document.getElementById('chartStudentsMonthly')) {
+        // Thêm nhãn rõ nghĩa: (đã thanh toán)
+        drawLine(document.getElementById('chartStudentsMonthly'), monthlyStudents, months, 'Học viên theo tháng (đã thanh toán)');
+    }
 }
 
 // Export Excel

@@ -354,6 +354,16 @@ def create_sample_data():
     else:
         print(f" Students already exist ({len(existing_students)} found)")
 
+    # Helper: random datetime in a given year
+    def _random_datetime_in_year(year: int) -> datetime:
+        start = datetime(year, 1, 1)
+        end = datetime(year, 12, 31, 23, 59, 59)
+        delta = end - start
+        rand_seconds = random.randint(0, int(delta.total_seconds()))
+        dt = start + timedelta(seconds=rand_seconds)
+        now = datetime.now()
+        return dt if dt <= now else now - timedelta(days=random.randint(0, 30))
+
     # Ghi danh mẫu: mỗi học viên vào ngẫu nhiên 2-4 khóa + tạo payment nếu khóa có phí
     students = User.query.filter_by(role=UserRole.STUDENT).all()
     courses = Course.query.order_by(Course.id.asc()).all()
@@ -373,13 +383,15 @@ def create_sample_data():
                         price_val = 0
                     if price_val > 0:
                         method = random.choice([PaymentMethod.MOMO, PaymentMethod.VNPAY])
+                        # Rải đều thời gian thanh toán trong năm hiện tại
+                        pay_dt = _random_datetime_in_year(datetime.now().year)
                         pay = Payment(
                             enrollment_id=enr.id,
                             amount=crs.price,
                             payment_method=method,
                             transaction_id=f"SEED-{stu.id}-{crs.id}",
                             status=PaymentStatus.COMPLETED,
-                            payment_date=datetime.now()
+                            payment_date=pay_dt
                         )
                         db.session.add(pay)
         try:

@@ -1181,14 +1181,28 @@ def instructor_stats():
 
     month = request.args.get("month", type=int)
     year = request.args.get("year", default=datetime.now().year, type=int)
+    course_id = request.args.get("course_id", type=int)
 
     # Lấy thống kê từ DAO
-    stats_data = dao.get_instructor_course_stats(current_user.id, month=month, year=year)
+    stats_data = dao.get_instructor_course_stats(current_user.id, month=month, year=year, course_id=course_id)
     stats = stats_data['stats']
     labels = stats_data['labels']
     student_counts = stats_data['student_counts']
     revenues = stats_data['revenues']
     total_revenue = stats_data['total_revenue']
+
+    # KPI bổ sung
+    total_students = sum(student_counts or [])
+    total_courses = len(labels or [])
+
+    # Thống kê theo tháng trong năm
+    monthly = dao.get_instructor_monthly_stats(current_user.id, year=year, course_id=course_id)
+    months = monthly['months']
+    monthly_revenues = monthly['monthly_revenues']
+    monthly_students = monthly['monthly_students']
+
+    # Danh sách khóa học cho dropdown
+    instructor_courses = Course.query.filter_by(instructor_id=current_user.id).order_by(Course.title.asc()).all()
 
     return render_template(
         "chart_instructor.html",
@@ -1198,7 +1212,14 @@ def instructor_stats():
         stats=stats,
         total_revenue=total_revenue,
         month=month,
-        year=year
+        year=year,
+        course_id=course_id,
+        total_students=total_students,
+        total_courses=total_courses,
+        months=months,
+        monthly_revenues=monthly_revenues,
+        monthly_students=monthly_students,
+        instructor_courses=instructor_courses
     )
 
 

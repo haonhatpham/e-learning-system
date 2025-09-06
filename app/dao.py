@@ -698,3 +698,5 @@ def get_instructor_monthly_stats(instructor_id: int, year: int, course_id: int =
         "monthly_revenues": monthly_revenues,
         "monthly_students": monthly_students,
     }
+def get_enrollment_by_user_and_course(user_id: int, course_id: int):
+    return Enrollment.query.filter_by(user_id=user_id, course_id=course_id).first()

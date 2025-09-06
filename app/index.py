@@ -441,7 +441,6 @@ def course_forum(course_id):
             'parent_id': c.parent_comment_id
         })
 
-    # Xây cây bình luận
     by_parent = {}
     for pc in parsed_comments:
         by_parent.setdefault(pc['parent_id'], []).append(pc)
@@ -465,7 +464,6 @@ def course_chat(course_id):
     course = Course.query.get_or_404(course_id)
     lesson_id = request.args.get('lesson_id', type=int)
 
-    # Chỉ cho phép học viên đã ghi danh, giảng viên chủ khóa hoặc admin
     is_owner = current_user.is_authenticated and course.instructor_id == current_user.id
     is_admin = current_user.is_authenticated and current_user.role == UserRole.ADMIN
     is_enrolled = Enrollment.query.filter_by(user_id=current_user.id, course_id=course.id).first() is not None
@@ -494,27 +492,19 @@ def course_chat(course_id):
 @app.route('/checkout/<int:course_id>')
 @login_required
 def checkout(course_id):
-    course = Course.query.get_or_404(course_id)
-    # Chặn giảng viên đăng ký khóa học của chính mình
+    course = dao.get_course_by_id(course_id)
+
     if course.instructor_id == current_user.id:
         flash('Bạn là giảng viên của khóa học này, không thể tự đăng ký.', 'warning')
         return redirect(url_for('course_detail', course_id=course_id))
 
-    # Kiểm tra đã ghi danh chưa
-    existing_enrollment = Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first()
+    existing_enrollment = dao.get_enrollment_by_user_and_course(current_user.id, course_id)
     if existing_enrollment:
         flash('Bạn đã đăng ký khóa học này rồi.', 'warning')
         return redirect(url_for('course_detail', course_id=course_id))
 
-    # Nếu khóa học miễn phí (0đ) thì ghi danh luôn, không qua thanh toán
     try:
-        price = course.price or 0
-        is_free = False
-        if isinstance(price, (int, float)):
-            is_free = float(price) <= 0
-        else:
-            # price có thể là Decimal
-            is_free = float(price) <= 0
+        is_free = float(course.price or 0) <= 0
     except Exception:
         is_free = False
 
@@ -531,11 +521,6 @@ def checkout(course_id):
 @app.route('/checkout/<int:course_id>', methods=['POST'])
 @login_required
 def process_checkout(course_id):
-    course = Course.query.get_or_404(course_id)
-    # Chặn giảng viên đăng ký khóa học của chính mình
-    if course.instructor_id == current_user.id:
-        flash('Bạn là giảng viên của khóa học này, không thể tự đăng ký.', 'warning')
-        return redirect(url_for('course_detail', course_id=course_id))
     payment_method = request.form.get('payment_method')
 
     if payment_method == 'vnpay':
@@ -606,7 +591,6 @@ def create_vnpay_url(course_id, user_id, amount, bank_code='', language='vn'):
 @app.route('/payment/vnpay/create/<int:course_id>', methods=['POST'])
 @login_required
 def create_vnpay_payment(course_id):
-    """Tạo thanh toán VNPAY"""
     course = Course.query.get_or_404(course_id)
 
     # Kiểm tra đã ghi danh chưa

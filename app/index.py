@@ -16,7 +16,6 @@ import hmac
 import hashlib
 import json
 import requests
-from bs4 import BeautifulSoup
 from sqlalchemy import func
 
 @app.route("/")

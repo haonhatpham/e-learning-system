@@ -29,7 +29,7 @@ app.config['MAIL_PASSWORD'] = 'awoq uxis jtdb dyca'     # Thay bằng App Passwo
 app.config['MAIL_DEFAULT_SENDER'] = 'thongbaocuahang@gmail.com'
 
 
-db = SQLAlchemy(app) 
+db = SQLAlchemy(app)
 login = LoginManager(app=app)
 mail = Mail(app)
 
@@ -81,8 +81,6 @@ def handle_unauthorized():
 
 # Import và khởi tạo Flask-Admin
 from app.admin import admin
-# Import routes to register endpoints when app is imported (for tests)
-from app import index  # noqa: F401
 
 # Config VNPAY
 app.config["VNPAY_TMN_CODE"] = "WH45MXV7"
@@ -97,24 +95,3 @@ app.config["MOMO_SECRET_KEY"] = "K951B6PE1waDMi640xX08PD3vg6EkVlz"
 app.config["MOMO_ENDPOINT"] = "https://test-payment.momo.vn"
 app.config["MOMO_RETURN_URL"] = "http://localhost:5000/momo_return"
 app.config["MOMO_IPN_URL"] = "http://localhost:5000/momo_ipn"
-
-
-# --- Testing helper (non-breaking) ---
-def init_test_config(**overrides):
-    """Lightweight hook to reconfigure the app for tests without factory refactor.
-
-    Example usage (in tests):
-        from app import app, db, init_test_config
-        init_test_config(SQLALCHEMY_DATABASE_URI='sqlite:///:memory:')
-        with app.app_context():
-            db.create_all()
-    """
-    default_testing_cfg = {
-        'TESTING': True,
-        'WTF_CSRF_ENABLED': False,
-        'MAIL_SUPPRESS_SEND': True,
-        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:'
-    }
-    default_testing_cfg.update(overrides or {})
-    app.config.update(default_testing_cfg)
-    return app

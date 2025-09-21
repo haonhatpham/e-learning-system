@@ -29,7 +29,7 @@ app.config['MAIL_PASSWORD'] = 'awoq uxis jtdb dyca'     # Thay bằng App Passwo
 app.config['MAIL_DEFAULT_SENDER'] = 'thongbaocuahang@gmail.com'
 
 
-db = SQLAlchemy(app) 
+db = SQLAlchemy(app)
 login = LoginManager(app=app)
 mail = Mail(app)
 

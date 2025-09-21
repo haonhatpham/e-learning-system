@@ -555,7 +555,7 @@ def get_quiz_questions(lesson_id: int):
 
 
 # ================= INSTRUCTOR STATS =================
-def get_instructor_course_stats(instructor_id: int, month: int = None, year: int = None):
+def get_instructor_course_stats(instructor_id: int, month: int = None, year: int = None, course_id: int = None):
     """Trả về thống kê khóa học của một giảng viên theo tháng/năm.
 
     Kết quả gồm:
@@ -566,6 +566,7 @@ def get_instructor_course_stats(instructor_id: int, month: int = None, year: int
     - total_revenue: tổng doanh thu (float)
     """
 
+    # Bắt đầu từ Course để luôn liệt kê tất cả khóa học của giảng viên
     query = (
         db.session.query(
             Course.id,
@@ -573,15 +574,21 @@ def get_instructor_course_stats(instructor_id: int, month: int = None, year: int
             func.count(Enrollment.id).label("num_students"),
             func.coalesce(func.sum(Payment.amount), 0).label("revenue")
         )
+        .filter(Course.instructor_id == instructor_id)
         .outerjoin(Enrollment, Enrollment.course_id == Course.id)
-        .outerjoin(Payment, Payment.enrollment_id == Enrollment.id)
-        .filter(Course.instructor_id == instructor_id, Payment.status == PaymentStatus.COMPLETED)
     )
 
+    # Điều kiện join Payment: chỉ lấy các payment COMPLETED và lọc theo tháng/năm nếu có
+    payment_on = (Payment.enrollment_id == Enrollment.id) & (Payment.status == PaymentStatus.COMPLETED)
     if month:
-        query = query.filter(func.extract("month", Payment.payment_date) == month)
+        payment_on = payment_on & (func.extract("month", Payment.payment_date) == month)
     if year:
-        query = query.filter(func.extract("year", Payment.payment_date) == year)
+        payment_on = payment_on & (func.extract("year", Payment.payment_date) == year)
+
+    query = query.outerjoin(Payment, payment_on)
+
+    if course_id:
+        query = query.filter(Course.id == course_id)
 
     query = query.group_by(Course.id, Course.title)
     raw = query.all()
@@ -627,3 +634,69 @@ def get_admin_instructor_stats(month: int = None, year: int = None):
         query = query.filter(func.extract("year", Payment.payment_date) == year)
 
     return query.all()
+
+
+def get_admin_monthly_revenue(year: int):
+    """Tổng doanh thu theo từng tháng trong năm (toàn hệ thống)."""
+    rows = (
+        db.session.query(
+            func.extract("month", Payment.payment_date).label("m"),
+            func.coalesce(func.sum(Payment.amount), 0).label("revenue")
+        )
+        .filter(
+            Payment.status == PaymentStatus.COMPLETED,
+            func.extract("year", Payment.payment_date) == year
+        )
+        .group_by("m")
+        .all()
+    )
+
+    by_month = {int(r.m): float(r.revenue) for r in rows}
+    months = [f"{m:02d}" for m in range(1, 13)]
+    revenues = [by_month.get(m, 0.0) for m in range(1, 13)]
+    return {"months": months, "revenues": revenues}
+
+
+def get_instructor_monthly_stats(instructor_id: int, year: int, course_id: int = None):
+    """Thống kê theo từng tháng trong năm cho 1 giảng viên.
+
+    Trả về:
+    - months: ["01", "02", ..., "12"] (string 2 chữ số)
+    - monthly_revenues: doanh thu theo tháng (float)
+    - monthly_students: số học viên thanh toán theo tháng (int)
+    """
+    # Cơ sở là các Payment đã COMPLETED của enrollment thuộc course của giảng viên
+    base_query = (
+        db.session.query(
+            func.extract("month", Payment.payment_date).label("m"),
+            func.coalesce(func.sum(Payment.amount), 0).label("revenue"),
+            func.count(func.distinct(Enrollment.id)).label("students")
+        )
+        .join(Enrollment, Payment.enrollment_id == Enrollment.id)
+        .join(Course, Enrollment.course_id == Course.id)
+        .filter(
+            Course.instructor_id == instructor_id,
+            Payment.status == PaymentStatus.COMPLETED,
+            func.extract("year", Payment.payment_date) == year
+        )
+        .group_by("m")
+    )
+
+    if course_id:
+        base_query = base_query.filter(Enrollment.course_id == course_id)
+
+    rows = base_query.all()
+    revenue_by_month = {int(r.m): float(r.revenue) for r in rows}
+    students_by_month = {int(r.m): int(r.students) for r in rows}
+
+    months = [f"{m:02d}" for m in range(1, 13)]
+    monthly_revenues = [revenue_by_month.get(m, 0.0) for m in range(1, 13)]
+    monthly_students = [students_by_month.get(m, 0) for m in range(1, 13)]
+
+    return {
+        "months": months,
+        "monthly_revenues": monthly_revenues,
+        "monthly_students": monthly_students,
+    }
+def get_enrollment_by_user_and_course(user_id: int, course_id: int):
+    return Enrollment.query.filter_by(user_id=user_id, course_id=course_id).first()

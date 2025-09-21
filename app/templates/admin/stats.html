@@ -1,7 +1,7 @@
 {% extends 'admin/master.html' %}
 
 {% block body %}
-<h1 class="text-center text-danger">THỐNG KÊ - DOANH THU THEO GIẢNG VIÊN</h1>
+<h1 class="text-center text-danger">THỐNG KÊ - TỔNG QUAN HỆ THỐNG</h1>
 
 <form method="get" class="mb-3">
     <label for="month">Tháng:</label>
@@ -17,6 +17,33 @@
     <button type="submit" class="btn btn-primary">Xem thống kê</button>
 
     </form>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Tổng doanh thu</div>
+                <div class="h4 mb-0">{{ '{:,.0f}'.format(total_revenue or 0) }} đ</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Tổng học viên (đã thanh toán)</div>
+                <div class="h4 mb-0">{{ total_students or 0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Số giảng viên có doanh thu</div>
+                <div class="h4 mb-0">{{ total_instructors or 0 }}</div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="row">
     <div class="col-md-5 col-12">
@@ -40,12 +67,25 @@
         <p>Tổng doanh thu: <strong>{{ '{:,.0f}'.format(ns.total) }} đ</strong></p>
     </div>
     <div class="col-md-7 col-12">
-        <canvas id="instructorChart" data-labels='{{ labels|tojson }}' data-data='{{ revenues|tojson }}'></canvas>
+        <div class="card shadow-sm mb-3" style="height: 320px;">
+            <div class="card-header">Doanh thu theo giảng viên</div>
+            <div class="card-body" style="height: 260px;">
+                <canvas id="instructorChart" data-labels='{{ labels|tojson }}' data-data='{{ revenues|tojson }}'></canvas>
+            </div>
+        </div>
+        <div class="card shadow-sm" style="height: 320px;">
+            <div class="card-header">Doanh thu theo tháng ({{ year }})</div>
+            <div class="card-body" style="height: 260px;">
+                <canvas id="monthlyRevenueChart" data-months='{{ months|tojson }}' data-revenues='{{ monthly_revenues|tojson }}'></canvas>
+            </div>
+        </div>
     </div>
     </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+const fmtVND = new Intl.NumberFormat('vi-VN');
+
 function draw(ctx, seriesData, xLabels, labelName) {
     new Chart(ctx, {
         type: 'bar',
@@ -55,25 +95,37 @@ function draw(ctx, seriesData, xLabels, labelName) {
                 label: labelName,
                 data: seriesData,
                 borderWidth: 1,
-                backgroundColor: ['#ff6384','#36a2eb','#ffce56','#4bc0c0','#9966ff']
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgba(54, 162, 235, 1)'
             }]
         },
-        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true, ticks: { callback: (v)=> fmtVND.format(v) } }
+            },
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: { callbacks: { label: (ctx)=> `${ctx.dataset.label}: ${fmtVND.format(ctx.parsed.y)} đ` } }
+            }
+        }
     });
 }
 
-const chartLabels = {{ labels|tojson }};
-const chartRevenues = {{ revenues|tojson }};
-let revenueData = [];
-let revenueLabels = [];
-for (let i = 0; i < chartLabels.length; i++) {
-    revenueData.push(chartRevenues[i] || 0);
-    revenueLabels.push(chartLabels[i]);
-}
-
 window.onload = function() {
-    const ctx = document.getElementById('instructorChart');
-    draw(ctx, revenueData, revenueLabels, 'Doanh thu');
+    const canvas = document.getElementById('instructorChart');
+    const revenueLabels = JSON.parse(canvas.getAttribute('data-labels') || '[]');
+    const revenueData = JSON.parse(canvas.getAttribute('data-data') || '[]');
+    draw(canvas, revenueData, revenueLabels, 'Doanh thu');
+
+    const mCanvas = document.getElementById('monthlyRevenueChart');
+    const months = JSON.parse(mCanvas.getAttribute('data-months') || '[]');
+    const mData = JSON.parse(mCanvas.getAttribute('data-revenues') || '[]');
+    new Chart(mCanvas, {
+        type: 'line',
+        data: { labels: months, datasets: [{ label: 'Doanh thu theo tháng', data: mData, borderColor: 'rgba(99, 132, 255, 1)', backgroundColor: 'rgba(99, 132, 255, 0.2)', fill: true, tension: 0.25 }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { callback: (v)=> fmtVND.format(v) } } } }
+    });
 }
 </script>
 {% endblock %}

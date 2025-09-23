@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://root:%s@localhost/ecoursedb?charset=utf8mb4" % quote("hieu")
+app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://admin:%s@database.c4tmq86mca9u.us-east-1.rds.amazonaws.com/db1?charset=utf8mb4" % quote("123456789a")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = True
 app.config["PAGE_SIZE"] = 9
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0

@@ -24,7 +24,7 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'thongbaocuahang@gmail.com'  # Thay bằng email Gmail của bạn
+app.config['MAIL_USERNAME'] = 'thongbaocuahang@gmail.com'
 app.config['MAIL_PASSWORD'] = 'awoq uxis jtdb dyca'     # Thay bằng App Password từ Google
 app.config['MAIL_DEFAULT_SENDER'] = 'thongbaocuahang@gmail.com'
 

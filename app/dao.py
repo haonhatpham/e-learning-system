@@ -534,7 +534,7 @@ def normalize_video_url(url: str) -> str:
     except Exception:
         return url
 
-
+#cuu
 def to_embeddable_video_url(url: str) -> str:
     """Compute a safe embeddable URL at render time (idempotent)."""
     try:

@@ -17,6 +17,10 @@ jobs:
       - name: Install Docker Compose
         run: |
                 sudo apt-get install -y docker-compose
+      - name: Install Docker Compose v2
+        run: |
+          sudo curl -SL https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
 
       - name: Deploy app
         run: |
